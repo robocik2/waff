@@ -57,55 +57,22 @@
         const cursor = document.getElementById('cursor');
         const avoidant = document.getElementById('avoidant');
         const heart = document.getElementById('heart');
-
-        const cursorSvg = `
-        <svg width="50" height="50" viewBox="0 0 50 50">
-            <style>
-                @keyframes cursorAnimation { to { transform: translateX(-250px); } }
-                #cursorGroup { animation: cursorAnimation 0.5s steps(5) infinite; }
-            </style>
-            <defs>
-                <g id="cursorFrame">
-                    <circle cx="25" cy="25" r="25" fill="red" />
-                    <rect x="0" y="0" width="50" height="50" fill="blue" />
-                    <polygon points="25,0 50,50 0,50" fill="green" />
-                    <ellipse cx="25" cy="25" rx="25" ry="15" fill="purple" />
-                    <path d="M25,0 L50,50 L0,50 Z" fill="orange" />
-                </g>
-            </defs>
-            <g id="cursorGroup">
-                <use href="#cursorFrame" x="0" />
-                <use href="#cursorFrame" x="50" />
-                <use href="#cursorFrame" x="100" />
-                <use href="#cursorFrame" x="150" />
-                <use href="#cursorFrame" x="200" />
-            </g>
-        </svg>`;
-
-        const avoidantSvg = `
-        <svg width="40" height="40" viewBox="0 0 40 40">
-            <style>
-                @keyframes avoidantAnimation { to { transform: translateX(-200px); } }
-                #avoidantGroup { animation: avoidantAnimation 0.5s steps(5) infinite; }
-            </style>
-            <defs>
-                <g id="avoidantFrame">
-                    <circle cx="20" cy="20" r="20" fill="yellow" />
-                    <rect x="0" y="0" width="40" height="40" fill="pink" />
-                    <polygon points="20,0 40,40 0,40" fill="cyan" />
-                    <ellipse cx="20" cy="20" rx="20" ry="10" fill="magenta" />
-                    <path d="M20,0 L40,40 L0,40 Z" fill="lime" />
-                </g>
-            </defs>
-            <g id="avoidantGroup">
-                <use href="#avoidantFrame" x="0" />
-                <use href="#avoidantFrame" x="40" />
-                <use href="#avoidantFrame" x="80" />
-                <use href="#avoidantFrame" x="120" />
-                <use href="#avoidantFrame" x="160" />
-            </g>
-        </svg>`;
-
+        const cursorFrames = [
+            '<img src="walk001.svg" width="50" height="50" alt="Cursor frame 1">',
+            '<img src="walk002.svg" width="50" height="50" alt="Cursor frame 2">',
+            '<img src="walk003.svg" width="50" height="50" alt="Cursor frame 3">',
+            '<img src="walk004.svg" width="50" height="50" alt="Cursor frame 4">',
+            '<img src="walk005.svg" width="50" height="50" alt="Cursor frame 5">'
+        ];
+        const avoidantFrames = [
+            '<img src="walk001.svg" width="40" height="40" alt="Avoidant frame 1">',
+            '<img src="walk002.svg" width="40" height="40" alt="Avoidant frame 2">',
+            '<img src="walk003.svg" width="40" height="40" alt="Avoidant frame 3">',
+            '<img src="walk004.svg" width="40" height="40" alt="Avoidant frame 4">',
+            '<img src="walk005.svg" width="40" height="40" alt="Avoidant frame 5">'
+        ];
+        let cursorFrame = 0;
+        let avoidantFrame = 0;
         let lastX = 0;
         let lastY = 0;
         let avoidantX = window.innerWidth / 2;
@@ -117,14 +84,19 @@
         let lastCursorMoveTime = Date.now();
         let isHeartVisible = false;
 
-        cursor.innerHTML = cursorSvg;
-        avoidant.innerHTML = avoidantSvg;
-
         function updateCursor(e) {
             cursorX = e.clientX;
             cursorY = e.clientY;
             lastCursorMoveTime = Date.now();
 
+            if (Math.abs(cursorX - lastX) > 5 || Math.abs(cursorY - lastY) > 5) {
+                cursorFrame = (cursorFrame + 1) % cursorFrames.length;
+                lastX = cursorX;
+                lastY = cursorY;
+                leaveTrail(cursorX, cursorY, cursorFrames[cursorFrame]);
+            }
+
+            cursor.innerHTML = cursorFrames[cursorFrame];
             cursor.style.left = `${cursorX - 25}px`;
             cursor.style.top = `${cursorY - 25}px`;
 
@@ -166,6 +138,12 @@
             avoidantX = Math.max(20, Math.min(window.innerWidth - 20, avoidantX));
             avoidantY = Math.max(20, Math.min(window.innerHeight - 20, avoidantY));
 
+            if (Math.abs(avoidantVx) > 0.1 || Math.abs(avoidantVy) > 0.1) {
+                avoidantFrame = (avoidantFrame + 1) % avoidantFrames.length;
+                leaveTrail(avoidantX, avoidantY, avoidantFrames[avoidantFrame]);
+            }
+
+            avoidant.innerHTML = avoidantFrames[avoidantFrame];
             avoidant.style.left = `${avoidantX - 20}px`;
             avoidant.style.top = `${avoidantY - 20}px`;
 
@@ -194,6 +172,17 @@
                 heart.style.transform = 'scale(2)';
                 heart.style.opacity = '0';
             }
+        }
+
+        function leaveTrail(x, y, frame) {
+            const trail = document.createElement('div');
+            trail.className = 'trail';
+            trail.innerHTML = frame;
+            trail.style.left = `${x - 25}px`;
+            trail.style.top = `${y - 25}px`;
+            document.body.appendChild(trail);
+
+            setTimeout(() => trail.remove(), 200);
         }
 
         function navigateTo(url) {
