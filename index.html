@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Walking Cursor with Larger Characters</title>
+    <title>Walking Cursor with Color-changing Decay Frames</title>
     <style>
         body {
             margin: 0;
@@ -19,6 +19,7 @@
         .trail {
             position: absolute;
             pointer-events: none;
+            transition: opacity 0.2s;
         }
         .menu-container {
             position: fixed;
@@ -93,7 +94,7 @@
                 cursorFrame = (cursorFrame + 1) % cursorFrames.length;
                 lastX = cursorX;
                 lastY = cursorY;
-                leaveTrail(cursorX, cursorY, cursorFrames[cursorFrame]);
+                leaveTrail(cursorX, cursorY, cursorFrames[cursorFrame], true);
             }
 
             cursor.innerHTML = cursorFrames[cursorFrame];
@@ -140,7 +141,7 @@
 
             if (Math.abs(avoidantVx) > 0.1 || Math.abs(avoidantVy) > 0.1) {
                 avoidantFrame = (avoidantFrame + 1) % avoidantFrames.length;
-                leaveTrail(avoidantX, avoidantY, avoidantFrames[avoidantFrame]);
+                leaveTrail(avoidantX, avoidantY, avoidantFrames[avoidantFrame], false);
             }
 
             avoidant.innerHTML = avoidantFrames[avoidantFrame];
@@ -174,50 +175,28 @@
             }
         }
 
-        function createDitherPattern(intensity) {
-            const canvas = document.createElement('canvas');
-            canvas.width = 4;
-            canvas.height = 4;
-            const ctx = canvas.getContext('2d');
-            const pattern = [
-                [0, 8, 2, 10],
-                [12, 4, 14, 6],
-                [3, 11, 1, 9],
-                [15, 7, 13, 5]
-            ];
-            
-            for (let y = 0; y < 4; y++) {
-                for (let x = 0; x < 4; x++) {
-                    const threshold = pattern[y][x] / 16;
-                    ctx.fillStyle = intensity > threshold ? 'black' : 'transparent';
-                    ctx.fillRect(x, y, 1, 1);
-                }
-            }
-            
-            return canvas;
-        }
-
-        function leaveTrail(x, y, frame) {
+        function leaveTrail(x, y, frame, isCursor) {
             const trail = document.createElement('div');
             trail.className = 'trail';
             trail.innerHTML = frame;
-            trail.style.left = `${x - 50}px`;
-            trail.style.top = `${y - 50}px`;
+            trail.style.left = `${x - (isCursor ? 50 : 40)}px`;
+            trail.style.top = `${y - (isCursor ? 50 : 40)}px`;
             document.body.appendChild(trail);
 
             let opacity = 1;
+            let hue = 0;
             const fadeInterval = setInterval(() => {
                 opacity -= 0.1;
+                hue += 10;
                 if (opacity <= 0) {
                     clearInterval(fadeInterval);
                     trail.remove();
                 } else {
-                    const ditherPattern = createDitherPattern(1 - opacity);
+                    const color = `hsl(${hue}, 100%, ${50 + (1 - opacity) * 30}%)`;
                     trail.style.opacity = opacity;
-                    trail.style.maskImage = `url(${ditherPattern.toDataURL()})`;
-                    trail.style.webkitMaskImage = `url(${ditherPattern.toDataURL()})`;
+                    trail.style.filter = `hue-rotate(${hue}deg) saturate(${100 + (1 - opacity) * 200}%)`;
                 }
-            }, 20);
+            }, 50);
         }
 
         function navigateTo(url) {
