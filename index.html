@@ -3,14 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Walking Cursor with White Stroke on Frames</title>
+    <title>Walking Cursor with Abrupt Frame Disappearance</title>
     <style>
         body {
             margin: 0;
             overflow: hidden;
             cursor: none;
             font-family: Arial, sans-serif;
-            background-color: #f0f0f0; /* Light gray background to make the stroke visible */
         }
         #cursor, #avoidant, #heart {
             position: fixed;
@@ -20,7 +19,6 @@
         .trail {
             position: absolute;
             pointer-events: none;
-            transition: opacity 0.2s;
         }
         .menu-container {
             position: fixed;
@@ -44,9 +42,6 @@
         .menu-button:hover {
             background-color: #2980b9;
         }
-        .character-frame {
-            filter: drop-shadow(0 0 2px white) drop-shadow(0 0 2px white);
-        }
     </style>
 </head>
 <body>
@@ -63,18 +58,18 @@
         const avoidant = document.getElementById('avoidant');
         const heart = document.getElementById('heart');
         const cursorFrames = [
-            '<img src="walk0001.svg" width="100" height="100" alt="Cursor frame 1" class="character-frame">',
-            '<img src="walk0002.svg" width="100" height="100" alt="Cursor frame 2" class="character-frame">',
-            '<img src="walk0003.svg" width="100" height="100" alt="Cursor frame 3" class="character-frame">',
-            '<img src="walk0004.svg" width="100" height="100" alt="Cursor frame 4" class="character-frame">',
-            '<img src="walk0005.svg" width="100" height="100" alt="Cursor frame 5" class="character-frame">'
+            '<img src="walk0001.svg" width="100" height="100" alt="Cursor frame 1">',
+            '<img src="walk0002.svg" width="100" height="100" alt="Cursor frame 2">',
+            '<img src="walk0003.svg" width="100" height="100" alt="Cursor frame 3">',
+            '<img src="walk0004.svg" width="100" height="100" alt="Cursor frame 4">',
+            '<img src="walk0005.svg" width="100" height="100" alt="Cursor frame 5">'
         ];
         const avoidantFrames = [
-            '<img src="walk0001.svg" width="80" height="80" alt="Avoidant frame 1" class="character-frame">',
-            '<img src="walk0002.svg" width="80" height="80" alt="Avoidant frame 2" class="character-frame">',
-            '<img src="walk0003.svg" width="80" height="80" alt="Avoidant frame 3" class="character-frame">',
-            '<img src="walk0004.svg" width="80" height="80" alt="Avoidant frame 4" class="character-frame">',
-            '<img src="walk0005.svg" width="80" height="80" alt="Avoidant frame 5" class="character-frame">'
+            '<img src="walk0001.svg" width="80" height="80" alt="Avoidant frame 1">',
+            '<img src="walk0002.svg" width="80" height="80" alt="Avoidant frame 2">',
+            '<img src="walk0003.svg" width="80" height="80" alt="Avoidant frame 3">',
+            '<img src="walk0004.svg" width="80" height="80" alt="Avoidant frame 4">',
+            '<img src="walk0005.svg" width="80" height="80" alt="Avoidant frame 5">'
         ];
         let cursorFrame = 0;
         let avoidantFrame = 0;
@@ -187,20 +182,10 @@
             trail.style.top = `${y - (isCursor ? 50 : 40)}px`;
             document.body.appendChild(trail);
 
-            let opacity = 1;
-            let hue = 0;
-            const fadeInterval = setInterval(() => {
-                opacity -= 0.1;
-                hue += 10;
-                if (opacity <= 0) {
-                    clearInterval(fadeInterval);
-                    trail.remove();
-                } else {
-                    const color = `hsl(${hue}, 100%, ${50 + (1 - opacity) * 30}%)`;
-                    trail.style.opacity = opacity;
-                    trail.style.filter = `hue-rotate(${hue}deg) saturate(${100 + (1 - opacity) * 200}%)`;
-                }
-            }, 50);
+            // Remove the trail after a short delay
+            setTimeout(() => {
+                trail.remove();
+            }, 100); // Adjust this value to change how long the frame stays visible
         }
 
         function navigateTo(url) {
