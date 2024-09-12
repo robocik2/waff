@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Walking Cursor with Complex Character Interaction and Dithered Decay</title>
+    <title>Walking Cursor with Larger Characters</title>
     <style>
         body {
             margin: 0;
@@ -58,18 +58,18 @@
         const avoidant = document.getElementById('avoidant');
         const heart = document.getElementById('heart');
         const cursorFrames = [
-            '<img src="walk0001.svg" width="50" height="50" alt="Cursor frame 1">',
-            '<img src="walk0002.svg" width="50" height="50" alt="Cursor frame 2">',
-            '<img src="walk0003.svg" width="50" height="50" alt="Cursor frame 3">',
-            '<img src="walk0004.svg" width="50" height="50" alt="Cursor frame 4">',
-            '<img src="walk0005.svg" width="50" height="50" alt="Cursor frame 5">'
+            '<img src="walk0001.svg" width="100" height="100" alt="Cursor frame 1">',
+            '<img src="walk0002.svg" width="100" height="100" alt="Cursor frame 2">',
+            '<img src="walk0003.svg" width="100" height="100" alt="Cursor frame 3">',
+            '<img src="walk0004.svg" width="100" height="100" alt="Cursor frame 4">',
+            '<img src="walk0005.svg" width="100" height="100" alt="Cursor frame 5">'
         ];
         const avoidantFrames = [
-            '<img src="walk0001.svg" width="40" height="40" alt="Avoidant frame 1">',
-            '<img src="walk0002.svg" width="40" height="40" alt="Avoidant frame 2">',
-            '<img src="walk0003.svg" width="40" height="40" alt="Avoidant frame 3">',
-            '<img src="walk0004.svg" width="40" height="40" alt="Avoidant frame 4">',
-            '<img src="walk0005.svg" width="40" height="40" alt="Avoidant frame 5">'
+            '<img src="walk0001.svg" width="80" height="80" alt="Avoidant frame 1">',
+            '<img src="walk0002.svg" width="80" height="80" alt="Avoidant frame 2">',
+            '<img src="walk0003.svg" width="80" height="80" alt="Avoidant frame 3">',
+            '<img src="walk0004.svg" width="80" height="80" alt="Avoidant frame 4">',
+            '<img src="walk0005.svg" width="80" height="80" alt="Avoidant frame 5">'
         ];
         let cursorFrame = 0;
         let avoidantFrame = 0;
@@ -97,8 +97,8 @@
             }
 
             cursor.innerHTML = cursorFrames[cursorFrame];
-            cursor.style.left = `${cursorX - 25}px`;
-            cursor.style.top = `${cursorY - 25}px`;
+            cursor.style.left = `${cursorX - 50}px`;
+            cursor.style.top = `${cursorY - 50}px`;
 
             if (isHeartVisible) {
                 hideHeart();
@@ -106,15 +106,72 @@
         }
 
         function updateAvoidant() {
-            // ... (rest of the updateAvoidant function remains unchanged)
+            const dx = cursorX - avoidantX;
+            const dy = cursorY - avoidantY;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            const timeSinceLastMove = Date.now() - lastCursorMoveTime;
+
+            if (distance < 200) {
+                // Run away
+                const angle = Math.atan2(dy, dx);
+                avoidantVx -= Math.cos(angle) * 2;
+                avoidantVy -= Math.sin(angle) * 2;
+            } else if (distance > 600 || timeSinceLastMove > 2000) {
+                // Move closer
+                avoidantVx += dx * 0.001;
+                avoidantVy += dy * 0.001;
+
+                if (timeSinceLastMove > 2000 && distance < 120) {
+                    showHeart();
+                }
+            }
+
+            // Apply friction
+            avoidantVx *= 0.95;
+            avoidantVy *= 0.95;
+
+            // Update position
+            avoidantX += avoidantVx;
+            avoidantY += avoidantVy;
+
+            // Keep avoidant character within screen bounds
+            avoidantX = Math.max(40, Math.min(window.innerWidth - 40, avoidantX));
+            avoidantY = Math.max(40, Math.min(window.innerHeight - 40, avoidantY));
+
+            if (Math.abs(avoidantVx) > 0.1 || Math.abs(avoidantVy) > 0.1) {
+                avoidantFrame = (avoidantFrame + 1) % avoidantFrames.length;
+                leaveTrail(avoidantX, avoidantY, avoidantFrames[avoidantFrame]);
+            }
+
+            avoidant.innerHTML = avoidantFrames[avoidantFrame];
+            avoidant.style.left = `${avoidantX - 40}px`;
+            avoidant.style.top = `${avoidantY - 40}px`;
+
+            requestAnimationFrame(updateAvoidant);
         }
 
         function showHeart() {
-            // ... (rest of the showHeart function remains unchanged)
+            if (!isHeartVisible) {
+                isHeartVisible = true;
+                heart.innerHTML = '<svg width="80" height="80"><path d="M40,20 C28,0 0,8 0,28 C0,48 40,68 40,68 C40,68 80,48 80,28 C80,8 52,0 40,20" fill="red"/></svg>';
+                heart.style.left = `${avoidantX - 40}px`;
+                heart.style.top = `${avoidantY - 80}px`;
+                heart.style.transform = 'scale(0)';
+                heart.style.opacity = '1';
+                heart.style.transition = 'transform 0.5s, opacity 0.5s';
+                setTimeout(() => {
+                    heart.style.transform = 'scale(1)';
+                }, 50);
+                setTimeout(hideHeart, 2000);
+            }
         }
 
         function hideHeart() {
-            // ... (rest of the hideHeart function remains unchanged)
+            if (isHeartVisible) {
+                isHeartVisible = false;
+                heart.style.transform = 'scale(2)';
+                heart.style.opacity = '0';
+            }
         }
 
         function createDitherPattern(intensity) {
@@ -144,8 +201,8 @@
             const trail = document.createElement('div');
             trail.className = 'trail';
             trail.innerHTML = frame;
-            trail.style.left = `${x - 25}px`;
-            trail.style.top = `${y - 25}px`;
+            trail.style.left = `${x - 50}px`;
+            trail.style.top = `${y - 50}px`;
             document.body.appendChild(trail);
 
             let opacity = 1;
