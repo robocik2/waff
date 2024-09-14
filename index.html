@@ -10,6 +10,8 @@
             overflow: hidden;
             cursor: none;
             font-family: Arial, sans-serif;
+            /* Added filters for old film effect */
+            filter: sepia(0.3) contrast(1.1) brightness(0.9) saturate(0.8);
         }
         #cursor, #avoidant, #heart {
             position: fixed;
@@ -42,6 +44,38 @@
         .menu-button:hover {
             background-color: #2980b9;
         }
+        /* Added grainy overlay */
+        body::after {
+            content: "";
+            position: fixed;
+            top: 0;
+            left: -100%;
+            width: 300%;
+            height: 300%;
+            background-image: repeating-radial-gradient(
+                circle at 0 0,
+                transparent 0,
+                transparent 1px,
+                rgba(0, 0, 0, 0.03) 1px,
+                rgba(0, 0, 0, 0.03) 100%
+            );
+            animation: grain 8s steps(10) infinite;
+            opacity: 0.5;
+            pointer-events: none;
+            z-index: 9998;
+        }
+        @keyframes grain {
+            0%, 100% { transform: translate(0, 0); }
+            10% { transform: translate(-5%, -10%); }
+            20% { transform: translate(-15%, 5%); }
+            30% { transform: translate(7%, -25%); }
+            40% { transform: translate(-5%, 25%); }
+            50% { transform: translate(-15%, 10%); }
+            60% { transform: translate(15%, 0%); }
+            70% { transform: translate(0%, 15%); }
+            80% { transform: translate(3%, 10%); }
+            90% { transform: translate(-10%, 10%); }
+        }
     </style>
 </head>
 <body>
@@ -58,18 +92,18 @@
         const avoidant = document.getElementById('avoidant');
         const heart = document.getElementById('heart');
         const cursorFrames = [
-            '<img src="walk0001.svg" width="100" height="100" alt="Cursor frame 1">',
-            '<img src="walk0002.svg" width="100" height="100" alt="Cursor frame 2">',
-            '<img src="walk0003.svg" width="100" height="100" alt="Cursor frame 3">',
-            '<img src="walk0004.svg" width="100" height="100" alt="Cursor frame 4">',
-            '<img src="walk0005.svg" width="100" height="100" alt="Cursor frame 5">'
+            '<img src="walk0001.svg" width="300" height="300" alt="Cursor frame 1">',
+            '<img src="walk0002.svg" width="300" height="300" alt="Cursor frame 2">',
+            '<img src="walk0003.svg" width="300" height="300" alt="Cursor frame 3">',
+            '<img src="walk0004.svg" width="300" height="300" alt="Cursor frame 4">',
+            '<img src="walk0005.svg" width="300" height="300" alt="Cursor frame 5">'
         ];
         const avoidantFrames = [
-            '<img src="walk0001.svg" width="80" height="80" alt="Avoidant frame 1">',
-            '<img src="walk0002.svg" width="80" height="80" alt="Avoidant frame 2">',
-            '<img src="walk0003.svg" width="80" height="80" alt="Avoidant frame 3">',
-            '<img src="walk0004.svg" width="80" height="80" alt="Avoidant frame 4">',
-            '<img src="walk0005.svg" width="80" height="80" alt="Avoidant frame 5">'
+            '<img src="walk0001.svg" width="240" height="240" alt="Avoidant frame 1">',
+            '<img src="walk0002.svg" width="240" height="240" alt="Avoidant frame 2">',
+            '<img src="walk0003.svg" width="240" height="240" alt="Avoidant frame 3">',
+            '<img src="walk0004.svg" width="240" height="240" alt="Avoidant frame 4">',
+            '<img src="walk0005.svg" width="240" height="240" alt="Avoidant frame 5">'
         ];
         let cursorFrame = 0;
         let avoidantFrame = 0;
@@ -97,8 +131,9 @@
             }
 
             cursor.innerHTML = cursorFrames[cursorFrame];
-            cursor.style.left = `${cursorX - 50}px`;
-            cursor.style.top = `${cursorY - 50}px`;
+            /* Adjusted positions for larger cursor */
+            cursor.style.left = `${cursorX - 150}px`;
+            cursor.style.top = `${cursorY - 150}px`;
 
             if (isHeartVisible) {
                 hideHeart();
@@ -135,8 +170,8 @@
             avoidantY += avoidantVy;
 
             // Keep avoidant character within screen bounds
-            avoidantX = Math.max(40, Math.min(window.innerWidth - 40, avoidantX));
-            avoidantY = Math.max(40, Math.min(window.innerHeight - 40, avoidantY));
+            avoidantX = Math.max(120, Math.min(window.innerWidth - 120, avoidantX));
+            avoidantY = Math.max(120, Math.min(window.innerHeight - 120, avoidantY));
 
             if (Math.abs(avoidantVx) > 0.1 || Math.abs(avoidantVy) > 0.1) {
                 avoidantFrame = (avoidantFrame + 1) % avoidantFrames.length;
@@ -144,8 +179,9 @@
             }
 
             avoidant.innerHTML = avoidantFrames[avoidantFrame];
-            avoidant.style.left = `${avoidantX - 40}px`;
-            avoidant.style.top = `${avoidantY - 40}px`;
+            /* Adjusted positions for larger avoidant character */
+            avoidant.style.left = `${avoidantX - 120}px`;
+            avoidant.style.top = `${avoidantY - 120}px`;
 
             requestAnimationFrame(updateAvoidant);
         }
@@ -178,8 +214,12 @@
             const trail = document.createElement('div');
             trail.className = 'trail';
             trail.innerHTML = frame;
-            trail.style.left = `${x - (isCursor ? 50 : 40)}px`;
-            trail.style.top = `${y - (isCursor ? 50 : 40)}px`;
+            /* Adjusted positions for larger trail images */
+            trail.style.left = `${x - (isCursor ? 150 : 120)}px`;
+            trail.style.top = `${y - (isCursor ? 150 : 120)}px`;
+            /* Added random color effect to trails */
+            const hueRotation = Math.floor(Math.random() * 360);
+            trail.style.filter = `hue-rotate(${hueRotation}deg)`;
             document.body.appendChild(trail);
 
             // Remove the trail after a short delay
