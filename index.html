@@ -10,8 +10,8 @@
             overflow: hidden;
             cursor: none;
             font-family: Arial, sans-serif;
-            /* Added filters for old film effect */
-            filter: sepia(0.3) contrast(1.1) brightness(0.9) saturate(0.8);
+            /* Enhanced filters for old film effect */
+            filter: blur(2px) sepia(0.3) contrast(1.1) brightness(0.9) saturate(0.8);
         }
         #cursor, #avoidant, #heart {
             position: fixed;
@@ -44,37 +44,24 @@
         .menu-button:hover {
             background-color: #2980b9;
         }
-        /* Added grainy overlay */
+        /* Enhanced grainy overlay */
         body::after {
             content: "";
             position: fixed;
             top: 0;
-            left: -100%;
-            width: 300%;
-            height: 300%;
-            background-image: repeating-radial-gradient(
-                circle at 0 0,
-                transparent 0,
-                transparent 1px,
-                rgba(0, 0, 0, 0.03) 1px,
-                rgba(0, 0, 0, 0.03) 100%
-            );
-            animation: grain 8s steps(10) infinite;
-            opacity: 0.5;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAKAAAACgCAIAAADcH5hnAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAA81JREFUeNrs3TEOwjAMRUFz+b97XcInIKQpyiW1/Dtlo3mVgkTZzz0AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4F/foLA6LAdPG4Ay0V02nIm0PTG4Aq0V02nIm0PTG4Aq0V02nIm0PTG4Aq0V02nIm0PTG4Aq0V02nIm0PTG4Aq0V02nIm0PTG4Aq0V02nIm0PTG4Aq0V02nIm0PTG4Aq0V02nIm0PTG4Aq0V02nIm0PTG4Aq0V02nIm0PTG4Aq0V02nIm0PTG4Aq0V02nIm0PTG4Aq0V02nIm0PTG4Aq0V02nIm0PTG4Aq0V02nIm0PTG4Aq0V02nIm0PTG4Aq0V02nIm0PTG4Aq0V02nIm0PTG4Aq0V02nIm0PTG4Aq0V02nIm0PTG4Aq0V02nIn84BvrIAV9rFbG6agAAAAASUVORK5CYII=');
+            opacity: 0.2;
             pointer-events: none;
             z-index: 9998;
+            mix-blend-mode: multiply;
+            animation: grainAnimation 3s steps(10) infinite;
         }
-        @keyframes grain {
-            0%, 100% { transform: translate(0, 0); }
-            10% { transform: translate(-5%, -10%); }
-            20% { transform: translate(-15%, 5%); }
-            30% { transform: translate(7%, -25%); }
-            40% { transform: translate(-5%, 25%); }
-            50% { transform: translate(-15%, 10%); }
-            60% { transform: translate(15%, 0%); }
-            70% { transform: translate(0%, 15%); }
-            80% { transform: translate(3%, 10%); }
-            90% { transform: translate(-10%, 10%); }
+        @keyframes grainAnimation {
+            0% { transform: translate(0, 0); }
+            100% { transform: translate(-100px, 100px); }
         }
     </style>
 </head>
@@ -131,7 +118,6 @@
             }
 
             cursor.innerHTML = cursorFrames[cursorFrame];
-            /* Adjusted positions for larger cursor */
             cursor.style.left = `${cursorX - 150}px`;
             cursor.style.top = `${cursorY - 150}px`;
 
@@ -179,7 +165,6 @@
             }
 
             avoidant.innerHTML = avoidantFrames[avoidantFrame];
-            /* Adjusted positions for larger avoidant character */
             avoidant.style.left = `${avoidantX - 120}px`;
             avoidant.style.top = `${avoidantY - 120}px`;
 
@@ -214,18 +199,17 @@
             const trail = document.createElement('div');
             trail.className = 'trail';
             trail.innerHTML = frame;
-            /* Adjusted positions for larger trail images */
             trail.style.left = `${x - (isCursor ? 150 : 120)}px`;
             trail.style.top = `${y - (isCursor ? 150 : 120)}px`;
-            /* Added random color effect to trails */
+            // Added random color effect to trails
             const hueRotation = Math.floor(Math.random() * 360);
             trail.style.filter = `hue-rotate(${hueRotation}deg)`;
             document.body.appendChild(trail);
 
-            // Remove the trail after a short delay
+            // Remove the trail after a longer delay
             setTimeout(() => {
                 trail.remove();
-            }, 100); // Adjust this value to change how long the frame stays visible
+            }, 800); // Increased from 100ms to 800ms
         }
 
         function navigateTo(url) {
