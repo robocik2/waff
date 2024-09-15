@@ -1,223 +1,198 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Walking Cursor with Abrupt Frame Disappearance</title>
-    <style>
-        body {
-            margin: 0;
-            overflow: hidden;
-            cursor: none;
-            font-family: Arial, sans-serif;
-            background-color: #7b1d16; /* Updated background color */
-            filter: blur(5px) sepia(0.3) contrast(1.1) brightness(0.9) saturate(0.8); /* Increased blur */
-        }
-        #cursor, #avoidant, #heart {
-            position: fixed;
-            pointer-events: none;
-            z-index: 9999;
-        }
-        .trail {
-            position: absolute;
-            pointer-events: none;
-        }
-        .menu-container {
-            position: fixed;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            display: flex;
-            gap: 20px;
-            z-index: 10000;
-        }
-        .menu-button {
-            padding: 10px 20px;
-            font-size: 18px;
-            cursor: pointer;
-            background-color: #3498db;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            transition: background-color 0.3s;
-        }
-        .menu-button:hover {
-            background-color: #2980b9;
-        }
-        /* Video grain overlay */
-        #grain-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            z-index: 9998;
-            pointer-events: none;
-            mix-blend-mode: soft-light; /* Blend mode set to soft light */
-            opacity: 0.5; /* Opacity set to 50% */
-        }
-    </style>
-</head>
-<body>
-    <!-- Video element for grain overlay -->
-    <video id="grain-overlay" autoplay loop muted>
-        <source src="grain.mp4" type="video/mp4">
-        Your browser does not support the video tag.
-    </video>
+import React, { useState, useEffect, useRef } from 'react';
 
-    <div id="cursor"></div>
-    <div id="avoidant"></div>
-    <div id="heart"></div>
-    <div class="menu-container">
-        <button class="menu-button" onclick="navigateTo('apply.html')">Apply</button>
-        <button class="menu-button" onclick="navigateTo('https://www.instagram.com')">Instagram</button>
-        <button class="menu-button" onclick="navigateTo('info.html')">Info</button>
-    </div>
-    <script>
-        const cursor = document.getElementById('cursor');
-        const avoidant = document.getElementById('avoidant');
-        const heart = document.getElementById('heart');
-        const cursorFrames = [
-            '<img src="walk0001.svg" width="300" height="300" alt="Cursor frame 1">',
-            '<img src="walk0002.svg" width="300" height="300" alt="Cursor frame 2">',
-            '<img src="walk0003.svg" width="300" height="300" alt="Cursor frame 3">',
-            '<img src="walk0004.svg" width="300" height="300" alt="Cursor frame 4">',
-            '<img src="walk0005.svg" width="300" height="300" alt="Cursor frame 5">'
-        ];
-        const avoidantFrames = [
-            '<img src="walk0001.svg" width="240" height="240" alt="Avoidant frame 1">',
-            '<img src="walk0002.svg" width="240" height="240" alt="Avoidant frame 2">',
-            '<img src="walk0003.svg" width="240" height="240" alt="Avoidant frame 3">',
-            '<img src="walk0004.svg" width="240" height="240" alt="Avoidant frame 4">',
-            '<img src="walk0005.svg" width="240" height="240" alt="Avoidant frame 5">'
-        ];
-        let cursorFrame = 0;
-        let avoidantFrame = 0;
-        let lastX = 0;
-        let lastY = 0;
-        let avoidantX = window.innerWidth / 2;
-        let avoidantY = window.innerHeight / 2;
-        let avoidantVx = 0;
-        let avoidantVy = 0;
-        let cursorX = 0;
-        let cursorY = 0;
-        let lastCursorMoveTime = Date.now();
-        let isHeartVisible = false;
+const SquishyEntities = () => {
+  const [entities, setEntities] = useState([]);
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  const [pattern, setPattern] = useState(null);
+  const requestRef = useRef();
+  const canvasRef = useRef();
 
-        function updateCursor(e) {
-            cursorX = e.clientX;
-            cursorY = e.clientY;
-            lastCursorMoveTime = Date.now();
+  const ENTITY_COUNT = 10;
+  const ENTITY_RADIUS = 50;
+  const DAMPENING = 0.98;
+  const SPRING_STRENGTH = 0.03;
+  const GRAVITY = 0.2;
+  const COLLISION_DAMPENING = 0.8;
 
-            if (Math.abs(cursorX - lastX) > 5 || Math.abs(cursorY - lastY) > 5) {
-                cursorFrame = (cursorFrame + 1) % cursorFrames.length;
-                lastX = cursorX;
-                lastY = cursorY;
-                leaveTrail(cursorX, cursorY, cursorFrames[cursorFrame], true);
-            }
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
 
-            cursor.innerHTML = cursorFrames[cursorFrame];
-            cursor.style.left = `${cursorX - 150}px`;
-            cursor.style.top = `${cursorY - 150}px`;
+    const loadSVG = async () => {
+      try {
+        const response = await fetch('/walk0001.svg');
+        const svgText = await response.text();
+        const img = new Image();
+        img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgText);
+        img.onload = () => {
+          const pat = ctx.createPattern(img, 'no-repeat');
+          setPattern(pat);
+        };
+      } catch (error) {
+        console.error('Error loading SVG:', error);
+      }
+    };
 
-            if (isHeartVisible) {
-                hideHeart();
-            }
-        }
+    loadSVG();
 
-        function updateAvoidant() {
-            const dx = cursorX - avoidantX;
-            const dy = cursorY - avoidantY;
-            const distance = Math.sqrt(dx * dx + dy * dy);
-            const timeSinceLastMove = Date.now() - lastCursorMoveTime;
+    const resizeCanvas = () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      initEntities();
+    };
 
-            if (distance < 200) {
-                // Run away
-                const angle = Math.atan2(dy, dx);
-                avoidantVx -= Math.cos(angle) * 2;
-                avoidantVy -= Math.sin(angle) * 2;
-            } else if (distance > 600 || timeSinceLastMove > 2000) {
-                // Move closer
-                avoidantVx += dx * 0.001;
-                avoidantVy += dy * 0.001;
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
 
-                if (timeSinceLastMove > 2000 && distance < 120) {
-                    showHeart();
-                }
-            }
+    const handleMouseMove = (e) => {
+      const rect = canvas.getBoundingClientRect();
+      setMousePos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+    };
 
-            // Apply friction
-            avoidantVx *= 0.95;
-            avoidantVy *= 0.95;
+    canvas.addEventListener('mousemove', handleMouseMove);
 
-            // Update position
-            avoidantX += avoidantVx;
-            avoidantY += avoidantVy;
+    return () => {
+      window.removeEventListener('resize', resizeCanvas);
+      canvas.removeEventListener('mousemove', handleMouseMove);
+    };
+  }, []);
 
-            // Keep avoidant character within screen bounds
-            avoidantX = Math.max(120, Math.min(window.innerWidth - 120, avoidantX));
-            avoidantY = Math.max(120, Math.min(window.innerHeight - 120, avoidantY));
+  const initEntities = () => {
+    const canvas = canvasRef.current;
+    const newEntities = Array.from({ length: ENTITY_COUNT }, () => ({
+      x: Math.random() * (canvas.width - ENTITY_RADIUS * 2) + ENTITY_RADIUS,
+      y: Math.random() * (canvas.height - ENTITY_RADIUS * 2) + ENTITY_RADIUS,
+      vx: 0,
+      vy: 0,
+      radius: ENTITY_RADIUS,
+      rotation: 0,
+    }));
+    setEntities(newEntities);
+  };
 
-            if (Math.abs(avoidantVx) > 0.1 || Math.abs(avoidantVy) > 0.1) {
-                avoidantFrame = (avoidantFrame + 1) % avoidantFrames.length;
-                leaveTrail(avoidantX, avoidantY, avoidantFrames[avoidantFrame], false);
-            }
+  const checkCollision = (e1, e2) => {
+    const dx = e2.x - e1.x;
+    const dy = e2.y - e1.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
 
-            avoidant.innerHTML = avoidantFrames[avoidantFrame];
-            avoidant.style.left = `${avoidantX - 120}px`;
-            avoidant.style.top = `${avoidantY - 120}px`;
+    if (distance < e1.radius + e2.radius) {
+      const angle = Math.atan2(dy, dx);
+      const sin = Math.sin(angle);
+      const cos = Math.cos(angle);
 
-            requestAnimationFrame(updateAvoidant);
-        }
+      // Rotate velocities
+      const vx1 = e1.vx * cos + e1.vy * sin;
+      const vy1 = e1.vy * cos - e1.vx * sin;
+      const vx2 = e2.vx * cos + e2.vy * sin;
+      const vy2 = e2.vy * cos - e2.vx * sin;
 
-        function showHeart() {
-            if (!isHeartVisible) {
-                isHeartVisible = true;
-                heart.innerHTML = '<svg width="80" height="80"><path d="M40,20 C28,0 0,8 0,28 C0,48 40,68 40,68 C40,68 80,48 80,28 C80,8 52,0 40,20" fill="red"/></svg>';
-                heart.style.left = `${avoidantX - 40}px`;
-                heart.style.top = `${avoidantY - 80}px`;
-                heart.style.transform = 'scale(0)';
-                heart.style.opacity = '1';
-                heart.style.transition = 'transform 0.5s, opacity 0.5s';
-                setTimeout(() => {
-                    heart.style.transform = 'scale(1)';
-                }, 50);
-                setTimeout(hideHeart, 2000);
-            }
-        }
+      // Collision reaction
+      const vxTotal = vx1 - vx2;
+      vx1 = ((e1.radius - e2.radius) * vx1 + 2 * e2.radius * vx2) / (e1.radius + e2.radius);
+      vx2 = vxTotal + vx1;
 
-        function hideHeart() {
-            if (isHeartVisible) {
-                isHeartVisible = false;
-                heart.style.transform = 'scale(2)';
-                heart.style.opacity = '0';
-            }
-        }
+      // Update positions to prevent sticking
+      const absV = Math.abs(vx1) + Math.abs(vx2);
+      const overlap = (e1.radius + e2.radius) - distance;
+      e1.x -= overlap * (vx1 / absV);
+      e2.x += overlap * (vx2 / absV);
 
-        function leaveTrail(x, y, frame, isCursor) {
-            const trail = document.createElement('div');
-            trail.className = 'trail';
-            trail.innerHTML = frame;
-            trail.style.left = `${x - (isCursor ? 150 : 120)}px`;
-            trail.style.top = `${y - (isCursor ? 150 : 120)}px`;
-            // Random color effect to trails
-            const hueRotation = Math.floor(Math.random() * 360);
-            trail.style.filter = `hue-rotate(${hueRotation}deg)`;
-            document.body.appendChild(trail);
+      // Rotate positions back
+      e1.vx = vx1 * cos - vy1 * sin;
+      e1.vy = vy1 * cos + vx1 * sin;
+      e2.vx = vx2 * cos - vy2 * sin;
+      e2.vy = vy2 * cos + vx2 * sin;
 
-            // Remove the trail after a longer delay
-            setTimeout(() => {
-                trail.remove();
-            }, 800); // Adjust as needed
-        }
+      e1.vx *= COLLISION_DAMPENING;
+      e1.vy *= COLLISION_DAMPENING;
+      e2.vx *= COLLISION_DAMPENING;
+      e2.vy *= COLLISION_DAMPENING;
+    }
+  };
 
-        function navigateTo(url) {
-            window.location.href = url;
-        }
+  const animate = () => {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        document.addEventListener('mousemove', updateCursor);
-        updateAvoidant();
-    </script>
-</body>
-</html>
+    const updatedEntities = entities.map((entity) => {
+      let dx = mousePos.x - entity.x;
+      let dy = mousePos.y - entity.y;
+      let distance = Math.sqrt(dx * dx + dy * dy);
+
+      if (distance < ENTITY_RADIUS * 2) {
+        const angle = Math.atan2(dy, dx);
+        const targetX = mousePos.x - Math.cos(angle) * ENTITY_RADIUS * 2;
+        const targetY = mousePos.y - Math.sin(angle) * ENTITY_RADIUS * 2;
+        entity.vx += (targetX - entity.x) * SPRING_STRENGTH;
+        entity.vy += (targetY - entity.y) * SPRING_STRENGTH;
+      }
+
+      entity.vy += GRAVITY;
+      entity.vx *= DAMPENING;
+      entity.vy *= DAMPENING;
+
+      entity.x += entity.vx;
+      entity.y += entity.vy;
+
+      // Update rotation based on horizontal velocity
+      entity.rotation = Math.atan2(entity.vy, entity.vx);
+
+      // Boundary checks
+      if (entity.x < entity.radius) {
+        entity.x = entity.radius;
+        entity.vx *= -COLLISION_DAMPENING;
+      }
+      if (entity.x > canvas.width - entity.radius) {
+        entity.x = canvas.width - entity.radius;
+        entity.vx *= -COLLISION_DAMPENING;
+      }
+      if (entity.y < entity.radius) {
+        entity.y = entity.radius;
+        entity.vy *= -COLLISION_DAMPENING;
+      }
+      if (entity.y > canvas.height - entity.radius) {
+        entity.y = canvas.height - entity.radius;
+        entity.vy *= -COLLISION_DAMPENING;
+      }
+
+      return entity;
+    });
+
+    // Check collisions between entities
+    for (let i = 0; i < updatedEntities.length; i++) {
+      for (let j = i + 1; j < updatedEntities.length; j++) {
+        checkCollision(updatedEntities[i], updatedEntities[j]);
+      }
+    }
+
+    setEntities(updatedEntities);
+
+    // Draw entities
+    if (pattern) {
+      entities.forEach((entity) => {
+        ctx.save();
+        ctx.translate(entity.x, entity.y);
+        ctx.rotate(entity.rotation);
+        ctx.beginPath();
+        ctx.arc(0, 0, entity.radius, 0, Math.PI * 2);
+        ctx.fillStyle = pattern;
+        ctx.fill();
+        ctx.restore();
+      });
+    }
+
+    requestRef.current = requestAnimationFrame(animate);
+  };
+
+  useEffect(() => {
+    requestRef.current = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(requestRef.current);
+  }, [entities, mousePos, pattern]);
+
+  return (
+    <canvas ref={canvasRef} style={{ display: 'block', width: '100vw', height: '100vh' }} />
+  );
+};
+
+export default SquishyEntities;
