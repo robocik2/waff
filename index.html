@@ -69,7 +69,7 @@
         ];
         Composite.add(world, walls);
 
-        function createLiquidBody(x, y, radius, particleRadius, svgPath) {
+        function createLiquidBody(x, y, radius, particleRadius, svgElement) {
             const group = Body.nextGroup(true);
             const particleOptions = {
                 friction: 0.05,
@@ -130,7 +130,7 @@
             });
             
             const liquidBody = Composite.create({ bodies: particles, constraints: constraints });
-            liquidBody.svgPath = svgPath;
+            liquidBody.svgElement = svgElement;
             liquidBody.originalRadius = radius;
             return liquidBody;
         }
@@ -178,14 +178,29 @@
 
         render.mouse = mouse;
 
-        // Custom rendering
-        Events.on(render, 'afterRender', function() {
+        // Initialize the simulation
+        let blobs = [];
+        async function init() {
+            blobs = await createBlobs();
+            
+            // Fit the render viewport to the scene
+            Render.lookAt(render, {
+                min: { x: 0, y: 0 },
+                max: { x: canvas.width, y: canvas.height }
+            });
+
+            // Start the custom rendering
+            Events.on(render, 'afterRender', renderBlobs);
+        }
+
+        // Custom rendering function
+        function renderBlobs() {
             const ctx = render.context;
             ctx.globalCompositeOperation = 'source-over';
             
             blobs.forEach(blob => {
                 const particles = blob.bodies;
-                const svgElement = blob.svgPath;
+                const svgElement = blob.svgElement;
                 
                 // Create a path from the particles
                 ctx.beginPath();
@@ -205,31 +220,21 @@
                 // Draw the SVG
                 const svgString = new XMLSerializer().serializeToString(svgElement);
                 const img = new Image();
+                img.onload = () => {
+                    const scale = (blob.originalRadius * 2) / Math.max(svgElement.width.baseVal.value, svgElement.height.baseVal.value);
+                    const centerX = particles.reduce((sum, p) => sum + p.position.x, 0) / particles.length;
+                    const centerY = particles.reduce((sum, p) => sum + p.position.y, 0) / particles.length;
+                    
+                    ctx.drawImage(img, 
+                        centerX - (svgElement.width.baseVal.value * scale) / 2, 
+                        centerY - (svgElement.height.baseVal.value * scale) / 2, 
+                        svgElement.width.baseVal.value * scale, 
+                        svgElement.height.baseVal.value * scale
+                    );
+                    
+                    ctx.restore();
+                };
                 img.src = 'data:image/svg+xml;base64,' + btoa(svgString);
-                
-                const scale = (blob.originalRadius * 2) / Math.max(svgElement.width.baseVal.value, svgElement.height.baseVal.value);
-                const centerX = particles.reduce((sum, p) => sum + p.position.x, 0) / particles.length;
-                const centerY = particles.reduce((sum, p) => sum + p.position.y, 0) / particles.length;
-                
-                ctx.drawImage(img, 
-                    centerX - (svgElement.width.baseVal.value * scale) / 2, 
-                    centerY - (svgElement.height.baseVal.value * scale) / 2, 
-                    svgElement.width.baseVal.value * scale, 
-                    svgElement.height.baseVal.value * scale
-                );
-                
-                ctx.restore();
-            });
-        });
-
-        // Initialize the simulation
-        async function init() {
-            const blobs = await createBlobs();
-            
-            // Fit the render viewport to the scene
-            Render.lookAt(render, {
-                min: { x: 0, y: 0 },
-                max: { x: canvas.width, y: canvas.height }
             });
         }
 
