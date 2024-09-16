@@ -3,13 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Deformable Soft Body Simulation</title>
+    <title>SVG-mapped Liquid-like Soft Body Simulation</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.18.0/matter.min.js"></script>
     <style>
         body, html {
             margin: 0;
             padding: 0;
             overflow: hidden;
+            background-color: #000;
         }
         canvas {
             display: block;
@@ -18,24 +19,29 @@
 </head>
 <body>
     <canvas id="canvas"></canvas>
+    <svg id="svgContainer" style="display:none;">
+        <path id="blobPath" d="M50,0 A50,50 0 1,1 50,100 A50,50 0 1,1 50,0 Z" fill="#3498db"/>
+    </svg>
     <script>
-        const canvas = document.getElementById('canvas');
-        const ctx = canvas.getContext('2d');
-
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-
         const Engine = Matter.Engine,
               Render = Matter.Render,
               Runner = Matter.Runner,
               Bodies = Matter.Bodies,
+              Body = Matter.Body,
               Composite = Matter.Composite,
               Constraint = Matter.Constraint,
               Mouse = Matter.Mouse,
+              MouseConstraint = Matter.MouseConstraint,
+              Common = Matter.Common,
+              Vector = Matter.Vector,
               Events = Matter.Events;
 
-        const engine = Engine.create();
-        const world = engine.world;
+        const engine = Engine.create(),
+              world = engine.world;
+
+        const canvas = document.getElementById('canvas');
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
 
         const render = Render.create({
             canvas: canvas,
@@ -44,9 +50,17 @@
                 width: canvas.width,
                 height: canvas.height,
                 wireframes: false,
-                background: '#f4f4f4'
+                background: 'transparent'
             }
         });
+
+        Render.run(render);
+
+        const runner = Runner.create();
+        Runner.run(runner, engine);
+
+        // Set gravity
+        engine.world.gravity.y = 0.3;
 
         // Create walls
         const wallThickness = 50;
@@ -58,93 +72,164 @@
         ];
         Composite.add(world, walls);
 
-        // Create soft bodies
-        function createSoftBody(x, y, columns, rows, columnGap, rowGap, radius, options) {
+        function createLiquidBody(x, y, radius, particleRadius, color) {
             const group = Body.nextGroup(true);
             const particleOptions = {
                 friction: 0.05,
+                restitution: 0.2,
+                density: 0.002,
                 collisionFilter: { group: group },
-                render: {
-                    visible: false
-                }
+                render: { visible: false }
             };
-            const constraintOptions = {
-                stiffness: 0.2,
-                render: {
-                    visible: false
-                }
-            };
-
-            let softBody = Composites.softBody(x, y, columns, rows, columnGap, rowGap, false, radius, particleOptions, constraintOptions);
             
-            const parts = softBody.bodies;
-            for (let i = 0; i < parts.length; i++) {
-                parts[i].render.fillStyle = options.color;
+            const particles = [];
+            const rows = Math.ceil(radius * 2 / particleRadius);
+            const cols = Math.ceil(radius * 2 / particleRadius);
+            
+            for (let i = 0; i < rows; i++) {
+                for (let j = 0; j < cols; j++) {
+                    const particleX = x - radius + j * particleRadius;
+                    const particleY = y - radius + i * particleRadius;
+                    if (Vector.magnitude(Vector.sub({x: particleX, y: particleY}, {x, y})) <= radius) {
+                        particles.push(Bodies.circle(particleX, particleY, particleRadius / 2, particleOptions));
+                    }
+                }
             }
-
-            return softBody;
+            
+            const constraints = [];
+            for (let i = 0; i < particles.length; i++) {
+                const particleA = particles[i];
+                for (let j = i + 1; j < particles.length; j++) {
+                    const particleB = particles[j];
+                    const distance = Vector.magnitude(Vector.sub(particleA.position, particleB.position));
+                    if (distance < particleRadius * 2.5) {
+                        constraints.push(
+                            Constraint.create({
+                                bodyA: particleA,
+                                bodyB: particleB,
+                                stiffness: 0.04,
+                                damping: 0.1,
+                                render: { visible: false }
+                            })
+                        );
+                    }
+                }
+            }
+            
+            // Add constraints to maintain circular shape
+            const centerParticle = particles[Math.floor(particles.length / 2)];
+            particles.forEach(particle => {
+                if (particle !== centerParticle) {
+                    constraints.push(
+                        Constraint.create({
+                            bodyA: centerParticle,
+                            bodyB: particle,
+                            stiffness: 0.001,
+                            damping: 0.1,
+                            render: { visible: false }
+                        })
+                    );
+                }
+            });
+            
+            const liquidBody = Composite.create({ bodies: particles, constraints: constraints });
+            liquidBody.color = color;
+            return liquidBody;
         }
 
-        const softBodies = [];
-        const numBodies = 5;
-        const minSize = Math.min(canvas.width, canvas.height) * 0.15;
-        const maxSize = Math.min(canvas.width, canvas.height) * 0.25;
+        const blobs = [];
+        const blobCount = 5;  // Reduced for better performance with SVG rendering
 
-        for (let i = 0; i < numBodies; i++) {
-            const x = wallThickness + Math.random() * (canvas.width - 2 * wallThickness);
-            const y = wallThickness + Math.random() * (canvas.height - 2 * wallThickness);
-            const size = minSize + Math.random() * (maxSize - minSize);
-            const color = `rgba(${Math.random() * 255}, ${Math.random() * 255}, ${Math.random() * 255}, 0.7)`;
-            const softBody = createSoftBody(x, y, 5, 5, 20, 20, 8, { color: color });
-            softBodies.push(softBody);
-            Composite.add(world, softBody);
+        for (let i = 0; i < blobCount; i++) {
+            const radius = Common.random(60, 100);
+            const x = Common.random(radius + wallThickness, canvas.width - radius - wallThickness);
+            const y = Common.random(radius + wallThickness, canvas.height - radius - wallThickness);
+            const color = `hsl(${Math.random() * 360}, 80%, 60%)`;
+            
+            const blob = createLiquidBody(x, y, radius, 15, color);
+            Composite.add(world, blob);
+            blobs.push(blob);
         }
 
-        // Create cursor body
-        const cursorRadius = 20;
-        const cursor = Bodies.circle(0, 0, cursorRadius, {
-            isStatic: true,
-            render: {
-                fillStyle: 'rgba(255, 0, 0, 0.5)'
-            }
+        // Add mouse control
+        const mouse = Mouse.create(render.canvas),
+              mouseConstraint = MouseConstraint.create(engine, {
+                  mouse: mouse,
+                  constraint: {
+                      stiffness: 0.2,
+                      render: { visible: false }
+                  }
+              });
+
+        Composite.add(world, mouseConstraint);
+
+        render.mouse = mouse;
+
+        // Custom rendering with SVG mapping
+        Events.on(render, 'afterRender', function() {
+            const ctx = render.context;
+            ctx.globalCompositeOperation = 'lighter';
+            
+            blobs.forEach(blob => {
+                const particles = blob.bodies;
+                const center = particles.reduce((acc, particle) => {
+                    acc.x += particle.position.x;
+                    acc.y += particle.position.y;
+                    return acc;
+                }, {x: 0, y: 0});
+                center.x /= particles.length;
+                center.y /= particles.length;
+
+                const outerParticles = particles.filter(particle => 
+                    Vector.magnitude(Vector.sub(particle.position, center)) > 
+                    Vector.magnitude(Vector.sub(particles[0].position, center)) * 0.8
+                );
+
+                ctx.save();
+                ctx.translate(center.x, center.y);
+                
+                const path = new Path2D(document.getElementById('blobPath').getAttribute('d'));
+                const scale = Vector.magnitude(Vector.sub(outerParticles[0].position, center)) / 50;
+                ctx.scale(scale, scale);
+
+                ctx.fillStyle = blob.color;
+                ctx.fill(path);
+
+                ctx.restore();
+            });
+            
+            ctx.globalCompositeOperation = 'source-over';
         });
-        Composite.add(world, cursor);
 
-        // Mouse control
-        const mouse = Mouse.create(render.canvas);
-        Events.on(engine, 'afterUpdate', function() {
-            if (!mouse.position.x) return;
-            cursor.position.x = mouse.position.x;
-            cursor.position.y = mouse.position.y;
+        // Fit the render viewport to the scene
+        Render.lookAt(render, {
+            min: { x: 0, y: 0 },
+            max: { x: canvas.width, y: canvas.height }
         });
 
-        // Run the engine
-        Runner.run(engine);
-
-        // Run the renderer
-        Render.run(render);
-
-        // Resize handling
+        // Handle window resize
         window.addEventListener('resize', () => {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
+            render.canvas.width = canvas.width;
+            render.canvas.height = canvas.height;
             render.bounds.max.x = canvas.width;
             render.bounds.max.y = canvas.height;
-            render.options.width = canvas.width;
-            render.options.height = canvas.height;
-            Render.setPixelRatio(render, window.devicePixelRatio);
+            Render.lookAt(render, {
+                min: { x: 0, y: 0 },
+                max: { x: canvas.width, y: canvas.height }
+            });
 
             // Update wall positions
-            Composite.remove(world, walls);
-            walls[0].position.y = -wallThickness / 2;
-            walls[0].vertices[1].x = walls[0].vertices[2].x = canvas.width;
-            walls[1].position.y = canvas.height + wallThickness / 2;
-            walls[1].vertices[1].x = walls[1].vertices[2].x = canvas.width;
-            walls[2].position.x = -wallThickness / 2;
-            walls[2].vertices[2].y = walls[2].vertices[3].y = canvas.height;
-            walls[3].position.x = canvas.width + wallThickness / 2;
-            walls[3].vertices[2].y = walls[3].vertices[3].y = canvas.height;
-            Composite.add(world, walls);
+            Body.setPosition(walls[0], { x: canvas.width / 2, y: -wallThickness / 2 });
+            Body.setPosition(walls[1], { x: canvas.width / 2, y: canvas.height + wallThickness / 2 });
+            Body.setPosition(walls[2], { x: -wallThickness / 2, y: canvas.height / 2 });
+            Body.setPosition(walls[3], { x: canvas.width + wallThickness / 2, y: canvas.height / 2 });
+            
+            Body.setVertices(walls[0], Matter.Vertices.fromPath(`0 0 ${canvas.width} 0 ${canvas.width} ${wallThickness} 0 ${wallThickness}`));
+            Body.setVertices(walls[1], Matter.Vertices.fromPath(`0 0 ${canvas.width} 0 ${canvas.width} ${wallThickness} 0 ${wallThickness}`));
+            Body.setVertices(walls[2], Matter.Vertices.fromPath(`0 0 ${wallThickness} 0 ${wallThickness} ${canvas.height} 0 ${canvas.height}`));
+            Body.setVertices(walls[3], Matter.Vertices.fromPath(`0 0 ${wallThickness} 0 ${wallThickness} ${canvas.height} 0 ${canvas.height}`));
         });
     </script>
 </body>
