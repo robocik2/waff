@@ -1,245 +1,151 @@
-// File: src/App.js
-import React from 'react';
-import SquishyEntities from './SquishyEntities';
-
-function App() {
-  return (
-    <div className="App">
-      <SquishyEntities />
-    </div>
-  );
-}
-
-export default App;
-
-// File: src/SquishyEntities.js
-import React, { useState, useEffect, useRef } from 'react';
-
-const SquishyEntities = () => {
-  const [entities, setEntities] = useState([]);
-  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
-  const [pattern, setPattern] = useState(null);
-  const requestRef = useRef();
-  const canvasRef = useRef();
-
-  const ENTITY_COUNT = 10;
-  const ENTITY_RADIUS = 50;
-  const DAMPENING = 0.98;
-  const SPRING_STRENGTH = 0.03;
-  const GRAVITY = 0.2;
-  const COLLISION_DAMPENING = 0.8;
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-
-    const loadSVG = async () => {
-      try {
-        const response = await fetch('/walk0001.svg');
-        const svgText = await response.text();
-        const img = new Image();
-        img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgText);
-        img.onload = () => {
-          const pat = ctx.createPattern(img, 'no-repeat');
-          setPattern(pat);
-        };
-      } catch (error) {
-        console.error('Error loading SVG:', error);
-      }
-    };
-
-    loadSVG();
-
-    const resizeCanvas = () => {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-      initEntities();
-    };
-
-    window.addEventListener('resize', resizeCanvas);
-    resizeCanvas();
-
-    const handleMouseMove = (e) => {
-      const rect = canvas.getBoundingClientRect();
-      setMousePos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
-    };
-
-    canvas.addEventListener('mousemove', handleMouseMove);
-
-    return () => {
-      window.removeEventListener('resize', resizeCanvas);
-      canvas.removeEventListener('mousemove', handleMouseMove);
-    };
-  }, []);
-
-  const initEntities = () => {
-    const canvas = canvasRef.current;
-    const newEntities = Array.from({ length: ENTITY_COUNT }, () => ({
-      x: Math.random() * (canvas.width - ENTITY_RADIUS * 2) + ENTITY_RADIUS,
-      y: Math.random() * (canvas.height - ENTITY_RADIUS * 2) + ENTITY_RADIUS,
-      vx: 0,
-      vy: 0,
-      radius: ENTITY_RADIUS,
-      rotation: 0,
-    }));
-    setEntities(newEntities);
-  };
-
-  const checkCollision = (e1, e2) => {
-    const dx = e2.x - e1.x;
-    const dy = e2.y - e1.y;
-    const distance = Math.sqrt(dx * dx + dy * dy);
-
-    if (distance < e1.radius + e2.radius) {
-      const angle = Math.atan2(dy, dx);
-      const sin = Math.sin(angle);
-      const cos = Math.cos(angle);
-
-      // Rotate velocities
-      const vx1 = e1.vx * cos + e1.vy * sin;
-      const vy1 = e1.vy * cos - e1.vx * sin;
-      const vx2 = e2.vx * cos + e2.vy * sin;
-      const vy2 = e2.vy * cos - e2.vx * sin;
-
-      // Collision reaction
-      const vxTotal = vx1 - vx2;
-      vx1 = ((e1.radius - e2.radius) * vx1 + 2 * e2.radius * vx2) / (e1.radius + e2.radius);
-      vx2 = vxTotal + vx1;
-
-      // Update positions to prevent sticking
-      const absV = Math.abs(vx1) + Math.abs(vx2);
-      const overlap = (e1.radius + e2.radius) - distance;
-      e1.x -= overlap * (vx1 / absV);
-      e2.x += overlap * (vx2 / absV);
-
-      // Rotate positions back
-      e1.vx = vx1 * cos - vy1 * sin;
-      e1.vy = vy1 * cos + vx1 * sin;
-      e2.vx = vx2 * cos - vy2 * sin;
-      e2.vy = vy2 * cos + vx2 * sin;
-
-      e1.vx *= COLLISION_DAMPENING;
-      e1.vy *= COLLISION_DAMPENING;
-      e2.vx *= COLLISION_DAMPENING;
-      e2.vy *= COLLISION_DAMPENING;
-    }
-  };
-
-  const animate = () => {
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    const updatedEntities = entities.map((entity) => {
-      let dx = mousePos.x - entity.x;
-      let dy = mousePos.y - entity.y;
-      let distance = Math.sqrt(dx * dx + dy * dy);
-
-      if (distance < ENTITY_RADIUS * 2) {
-        const angle = Math.atan2(dy, dx);
-        const targetX = mousePos.x - Math.cos(angle) * ENTITY_RADIUS * 2;
-        const targetY = mousePos.y - Math.sin(angle) * ENTITY_RADIUS * 2;
-        entity.vx += (targetX - entity.x) * SPRING_STRENGTH;
-        entity.vy += (targetY - entity.y) * SPRING_STRENGTH;
-      }
-
-      entity.vy += GRAVITY;
-      entity.vx *= DAMPENING;
-      entity.vy *= DAMPENING;
-
-      entity.x += entity.vx;
-      entity.y += entity.vy;
-
-      // Update rotation based on horizontal velocity
-      entity.rotation = Math.atan2(entity.vy, entity.vx);
-
-      // Boundary checks
-      if (entity.x < entity.radius) {
-        entity.x = entity.radius;
-        entity.vx *= -COLLISION_DAMPENING;
-      }
-      if (entity.x > canvas.width - entity.radius) {
-        entity.x = canvas.width - entity.radius;
-        entity.vx *= -COLLISION_DAMPENING;
-      }
-      if (entity.y < entity.radius) {
-        entity.y = entity.radius;
-        entity.vy *= -COLLISION_DAMPENING;
-      }
-      if (entity.y > canvas.height - entity.radius) {
-        entity.y = canvas.height - entity.radius;
-        entity.vy *= -COLLISION_DAMPENING;
-      }
-
-      return entity;
-    });
-
-    // Check collisions between entities
-    for (let i = 0; i < updatedEntities.length; i++) {
-      for (let j = i + 1; j < updatedEntities.length; j++) {
-        checkCollision(updatedEntities[i], updatedEntities[j]);
-      }
-    }
-
-    setEntities(updatedEntities);
-
-    // Draw entities
-    if (pattern) {
-      entities.forEach((entity) => {
-        ctx.save();
-        ctx.translate(entity.x, entity.y);
-        ctx.rotate(entity.rotation);
-        ctx.beginPath();
-        ctx.arc(0, 0, entity.radius, 0, Math.PI * 2);
-        ctx.fillStyle = pattern;
-        ctx.fill();
-        ctx.restore();
-      });
-    }
-
-    requestRef.current = requestAnimationFrame(animate);
-  };
-
-  useEffect(() => {
-    requestRef.current = requestAnimationFrame(animate);
-    return () => cancelAnimationFrame(requestRef.current);
-  }, [entities, mousePos, pattern]);
-
-  return (
-    <canvas ref={canvasRef} style={{ display: 'block', width: '100vw', height: '100vh' }} />
-  );
-};
-
-export default SquishyEntities;
-
-// File: public/index.html
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Squishy Entities</title>
-  </head>
-  <body>
-    <noscript>You need to enable JavaScript to run this app.</noscript>
-    <div id="root"></div>
-  </body>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deformable Soft Body Simulation</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.18.0/matter.min.js"></script>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+        canvas {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        const Engine = Matter.Engine,
+              Render = Matter.Render,
+              Runner = Matter.Runner,
+              Bodies = Matter.Bodies,
+              Composite = Matter.Composite,
+              Constraint = Matter.Constraint,
+              Mouse = Matter.Mouse,
+              Events = Matter.Events;
+
+        const engine = Engine.create();
+        const world = engine.world;
+
+        const render = Render.create({
+            canvas: canvas,
+            engine: engine,
+            options: {
+                width: canvas.width,
+                height: canvas.height,
+                wireframes: false,
+                background: '#f4f4f4'
+            }
+        });
+
+        // Create walls
+        const wallThickness = 50;
+        const walls = [
+            Bodies.rectangle(canvas.width / 2, -wallThickness / 2, canvas.width, wallThickness, { isStatic: true }),
+            Bodies.rectangle(canvas.width / 2, canvas.height + wallThickness / 2, canvas.width, wallThickness, { isStatic: true }),
+            Bodies.rectangle(-wallThickness / 2, canvas.height / 2, wallThickness, canvas.height, { isStatic: true }),
+            Bodies.rectangle(canvas.width + wallThickness / 2, canvas.height / 2, wallThickness, canvas.height, { isStatic: true })
+        ];
+        Composite.add(world, walls);
+
+        // Create soft bodies
+        function createSoftBody(x, y, columns, rows, columnGap, rowGap, radius, options) {
+            const group = Body.nextGroup(true);
+            const particleOptions = {
+                friction: 0.05,
+                collisionFilter: { group: group },
+                render: {
+                    visible: false
+                }
+            };
+            const constraintOptions = {
+                stiffness: 0.2,
+                render: {
+                    visible: false
+                }
+            };
+
+            let softBody = Composites.softBody(x, y, columns, rows, columnGap, rowGap, false, radius, particleOptions, constraintOptions);
+            
+            const parts = softBody.bodies;
+            for (let i = 0; i < parts.length; i++) {
+                parts[i].render.fillStyle = options.color;
+            }
+
+            return softBody;
+        }
+
+        const softBodies = [];
+        const numBodies = 5;
+        const minSize = Math.min(canvas.width, canvas.height) * 0.15;
+        const maxSize = Math.min(canvas.width, canvas.height) * 0.25;
+
+        for (let i = 0; i < numBodies; i++) {
+            const x = wallThickness + Math.random() * (canvas.width - 2 * wallThickness);
+            const y = wallThickness + Math.random() * (canvas.height - 2 * wallThickness);
+            const size = minSize + Math.random() * (maxSize - minSize);
+            const color = `rgba(${Math.random() * 255}, ${Math.random() * 255}, ${Math.random() * 255}, 0.7)`;
+            const softBody = createSoftBody(x, y, 5, 5, 20, 20, 8, { color: color });
+            softBodies.push(softBody);
+            Composite.add(world, softBody);
+        }
+
+        // Create cursor body
+        const cursorRadius = 20;
+        const cursor = Bodies.circle(0, 0, cursorRadius, {
+            isStatic: true,
+            render: {
+                fillStyle: 'rgba(255, 0, 0, 0.5)'
+            }
+        });
+        Composite.add(world, cursor);
+
+        // Mouse control
+        const mouse = Mouse.create(render.canvas);
+        Events.on(engine, 'afterUpdate', function() {
+            if (!mouse.position.x) return;
+            cursor.position.x = mouse.position.x;
+            cursor.position.y = mouse.position.y;
+        });
+
+        // Run the engine
+        Runner.run(engine);
+
+        // Run the renderer
+        Render.run(render);
+
+        // Resize handling
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            render.bounds.max.x = canvas.width;
+            render.bounds.max.y = canvas.height;
+            render.options.width = canvas.width;
+            render.options.height = canvas.height;
+            Render.setPixelRatio(render, window.devicePixelRatio);
+
+            // Update wall positions
+            Composite.remove(world, walls);
+            walls[0].position.y = -wallThickness / 2;
+            walls[0].vertices[1].x = walls[0].vertices[2].x = canvas.width;
+            walls[1].position.y = canvas.height + wallThickness / 2;
+            walls[1].vertices[1].x = walls[1].vertices[2].x = canvas.width;
+            walls[2].position.x = -wallThickness / 2;
+            walls[2].vertices[2].y = walls[2].vertices[3].y = canvas.height;
+            walls[3].position.x = canvas.width + wallThickness / 2;
+            walls[3].vertices[2].y = walls[3].vertices[3].y = canvas.height;
+            Composite.add(world, walls);
+        });
+    </script>
+</body>
 </html>
-
-// File: src/index.js
-import React from 'react';
-import ReactDOM from 'react-dom';
-import App from './App';
-
-ReactDOM.render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>,
-  document.getElementById('root')
-);
-
-// File: public/walk0001.svg
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-  <circle cx="50" cy="50" r="40" fill="blue" />
-  <!-- Add more SVG elements here to create your walking figure -->
-</svg>
