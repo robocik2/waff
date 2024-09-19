@@ -56,8 +56,10 @@
         const runner = Runner.create();
         Runner.run(runner, engine);
 
+        // Set gravity
         engine.world.gravity.y = 0.3;
 
+        // Create walls
         const wallThickness = 50;
         const walls = [
             Bodies.rectangle(canvas.width / 2, -wallThickness / 2, canvas.width, wallThickness, { isStatic: true }),
@@ -76,11 +78,11 @@
                 collisionFilter: { group: group },
                 render: { visible: false }
             };
-
+            
             const particles = [];
             const rows = Math.ceil(radius * 2 / particleRadius);
             const cols = Math.ceil(radius * 2 / particleRadius);
-
+            
             for (let i = 0; i < rows; i++) {
                 for (let j = 0; j < cols; j++) {
                     const particleX = x - radius + j * particleRadius;
@@ -90,7 +92,7 @@
                     }
                 }
             }
-
+            
             const constraints = [];
             for (let i = 0; i < particles.length; i++) {
                 const particleA = particles[i];
@@ -110,7 +112,8 @@
                     }
                 }
             }
-
+            
+            // Add constraints to maintain circular shape
             const centerParticle = particles[Math.floor(particles.length / 2)];
             particles.forEach(particle => {
                 if (particle !== centerParticle) {
@@ -125,26 +128,27 @@
                     );
                 }
             });
-
+            
             const liquidBody = Composite.create({ bodies: particles, constraints: constraints });
             liquidBody.color = color;
             return liquidBody;
         }
 
         const blobs = [];
-        const blobCount = 10;
+        const blobCount = 10;  // Increased number of blobs
 
         for (let i = 0; i < blobCount; i++) {
-            const radius = Common.random(60, 100);
+            const radius = Common.random(60, 100);  // Increased size range
             const x = Common.random(radius + wallThickness, canvas.width - radius - wallThickness);
             const y = Common.random(radius + wallThickness, canvas.height - radius - wallThickness);
             const color = `hsl(${Math.random() * 360}, 80%, 60%)`;
-
+            
             const blob = createLiquidBody(x, y, radius, 15, color);
             Composite.add(world, blob);
             blobs.push(blob);
         }
 
+        // Add mouse control
         const mouse = Mouse.create(render.canvas),
               mouseConstraint = MouseConstraint.create(engine, {
                   mouse: mouse,
@@ -158,33 +162,47 @@
 
         render.mouse = mouse;
 
-        // Load the SVG image
-        const svgImage = new Image();
-        svgImage.src = 'walk0001.SVG';
-        
         // Custom rendering
         Events.on(render, 'afterRender', function() {
             const ctx = render.context;
             ctx.globalCompositeOperation = 'lighter';
-
+            
             blobs.forEach(blob => {
                 const particles = blob.bodies;
-
-                // Draw SVG at each particle position
+                
+                // Draw connections
+                ctx.beginPath();
+                ctx.strokeStyle = blob.color;
+                ctx.lineWidth = 2;
+                particles.forEach(particleA => {
+                    particles.forEach(particleB => {
+                        if (particleA.id < particleB.id) {
+                            ctx.moveTo(particleA.position.x, particleA.position.y);
+                            ctx.lineTo(particleB.position.x, particleB.position.y);
+                        }
+                    });
+                });
+                ctx.stroke();
+                
+                // Draw particles
                 particles.forEach(particle => {
-                    const size = 30; // Set the desired size of the SVG
-                    ctx.drawImage(svgImage, particle.position.x - size / 2, particle.position.y - size / 2, size, size);
+                    ctx.beginPath();
+                    ctx.arc(particle.position.x, particle.position.y, 6, 0, 2 * Math.PI);
+                    ctx.fillStyle = blob.color;
+                    ctx.fill();
                 });
             });
-
+            
             ctx.globalCompositeOperation = 'source-over';
         });
 
+        // Fit the render viewport to the scene
         Render.lookAt(render, {
             min: { x: 0, y: 0 },
             max: { x: canvas.width, y: canvas.height }
         });
 
+        // Handle window resize
         window.addEventListener('resize', () => {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
@@ -197,11 +215,12 @@
                 max: { x: canvas.width, y: canvas.height }
             });
 
+            // Update wall positions
             Body.setPosition(walls[0], { x: canvas.width / 2, y: -wallThickness / 2 });
             Body.setPosition(walls[1], { x: canvas.width / 2, y: canvas.height + wallThickness / 2 });
             Body.setPosition(walls[2], { x: -wallThickness / 2, y: canvas.height / 2 });
             Body.setPosition(walls[3], { x: canvas.width + wallThickness / 2, y: canvas.height / 2 });
-
+            
             Body.setVertices(walls[0], Matter.Vertices.fromPath(`0 0 ${canvas.width} 0 ${canvas.width} ${wallThickness} 0 ${wallThickness}`));
             Body.setVertices(walls[1], Matter.Vertices.fromPath(`0 0 ${canvas.width} 0 ${canvas.width} ${wallThickness} 0 ${wallThickness}`));
             Body.setVertices(walls[2], Matter.Vertices.fromPath(`0 0 ${wallThickness} 0 ${wallThickness} ${canvas.height} 0 ${canvas.height}`));
