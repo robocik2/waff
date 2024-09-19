@@ -56,10 +56,8 @@
         const runner = Runner.create();
         Runner.run(runner, engine);
 
-        // Set gravity
         engine.world.gravity.y = 0.3;
 
-        // Create walls
         const wallThickness = 50;
         const walls = [
             Bodies.rectangle(canvas.width / 2, -wallThickness / 2, canvas.width, wallThickness, { isStatic: true }),
@@ -69,7 +67,7 @@
         ];
         Composite.add(world, walls);
 
-        function createLiquidBody(x, y, radius, particleRadius, color) {
+        function createLiquidBody(x, y, radius, particleRadius) {
             const group = Body.nextGroup(true);
             const particleOptions = {
                 friction: 0.05,
@@ -92,7 +90,7 @@
                     }
                 }
             }
-            
+
             const constraints = [];
             for (let i = 0; i < particles.length; i++) {
                 const particleA = particles[i];
@@ -112,43 +110,24 @@
                     }
                 }
             }
-            
-            // Add constraints to maintain circular shape
-            const centerParticle = particles[Math.floor(particles.length / 2)];
-            particles.forEach(particle => {
-                if (particle !== centerParticle) {
-                    constraints.push(
-                        Constraint.create({
-                            bodyA: centerParticle,
-                            bodyB: particle,
-                            stiffness: 0.001,
-                            damping: 0.1,
-                            render: { visible: false }
-                        })
-                    );
-                }
-            });
-            
+
             const liquidBody = Composite.create({ bodies: particles, constraints: constraints });
-            liquidBody.color = color;
             return liquidBody;
         }
 
         const blobs = [];
-        const blobCount = 10;  // Increased number of blobs
+        const blobCount = 1;
 
         for (let i = 0; i < blobCount; i++) {
-            const radius = Common.random(60, 100);  // Increased size range
+            const radius = 100;
             const x = Common.random(radius + wallThickness, canvas.width - radius - wallThickness);
             const y = Common.random(radius + wallThickness, canvas.height - radius - wallThickness);
-            const color = `hsl(${Math.random() * 360}, 80%, 60%)`;
             
-            const blob = createLiquidBody(x, y, radius, 15, color);
+            const blob = createLiquidBody(x, y, radius, 15);
             Composite.add(world, blob);
             blobs.push(blob);
         }
 
-        // Add mouse control
         const mouse = Mouse.create(render.canvas),
               mouseConstraint = MouseConstraint.create(engine, {
                   mouse: mouse,
@@ -162,47 +141,37 @@
 
         render.mouse = mouse;
 
-        // Custom rendering
-        Events.on(render, 'afterRender', function() {
-            const ctx = render.context;
-            ctx.globalCompositeOperation = 'lighter';
-            
-            blobs.forEach(blob => {
-                const particles = blob.bodies;
+        // Load the image to deform
+        const img = new Image();
+        img.src = 'walk0001.svg';  // Change to your image URL
+
+        img.onload = function() {
+            // Custom rendering
+            Events.on(render, 'afterRender', function() {
+                const ctx = render.context;
                 
-                // Draw connections
-                ctx.beginPath();
-                ctx.strokeStyle = blob.color;
-                ctx.lineWidth = 2;
-                particles.forEach(particleA => {
-                    particles.forEach(particleB => {
-                        if (particleA.id < particleB.id) {
-                            ctx.moveTo(particleA.position.x, particleA.position.y);
-                            ctx.lineTo(particleB.position.x, particleB.position.y);
-                        }
-                    });
-                });
-                ctx.stroke();
+                // Clear previous frame
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
                 
-                // Draw particles
-                particles.forEach(particle => {
-                    ctx.beginPath();
-                    ctx.arc(particle.position.x, particle.position.y, 6, 0, 2 * Math.PI);
-                    ctx.fillStyle = blob.color;
-                    ctx.fill();
+                // For each blob, calculate deformation based on particle positions
+                blobs.forEach(blob => {
+                    const particles = blob.bodies;
+                    
+                    ctx.save();
+                    
+                    // Deform image using particle positions
+                    for (let i = 0; i < particles.length; i++) {
+                        const particle = particles[i];
+                        
+                        // You can map different portions of the image to different particles
+                        ctx.drawImage(img, particle.position.x - 50, particle.position.y - 50, 100, 100); // Adjust based on your image size
+                    }
+
+                    ctx.restore();
                 });
             });
-            
-            ctx.globalCompositeOperation = 'source-over';
-        });
+        };
 
-        // Fit the render viewport to the scene
-        Render.lookAt(render, {
-            min: { x: 0, y: 0 },
-            max: { x: canvas.width, y: canvas.height }
-        });
-
-        // Handle window resize
         window.addEventListener('resize', () => {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
@@ -214,17 +183,6 @@
                 min: { x: 0, y: 0 },
                 max: { x: canvas.width, y: canvas.height }
             });
-
-            // Update wall positions
-            Body.setPosition(walls[0], { x: canvas.width / 2, y: -wallThickness / 2 });
-            Body.setPosition(walls[1], { x: canvas.width / 2, y: canvas.height + wallThickness / 2 });
-            Body.setPosition(walls[2], { x: -wallThickness / 2, y: canvas.height / 2 });
-            Body.setPosition(walls[3], { x: canvas.width + wallThickness / 2, y: canvas.height / 2 });
-            
-            Body.setVertices(walls[0], Matter.Vertices.fromPath(`0 0 ${canvas.width} 0 ${canvas.width} ${wallThickness} 0 ${wallThickness}`));
-            Body.setVertices(walls[1], Matter.Vertices.fromPath(`0 0 ${canvas.width} 0 ${canvas.width} ${wallThickness} 0 ${wallThickness}`));
-            Body.setVertices(walls[2], Matter.Vertices.fromPath(`0 0 ${wallThickness} 0 ${wallThickness} ${canvas.height} 0 ${canvas.height}`));
-            Body.setVertices(walls[3], Matter.Vertices.fromPath(`0 0 ${wallThickness} 0 ${wallThickness} ${canvas.height} 0 ${canvas.height}`));
         });
     </script>
 </body>
