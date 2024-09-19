@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SVG-mapped Soft Body Simulation</title>
+    <title>Firm Liquid-like Soft Body Simulation with Walls</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.18.0/matter.min.js"></script>
     <style>
         body, html {
@@ -56,10 +56,8 @@
         const runner = Runner.create();
         Runner.run(runner, engine);
 
-        // Set gravity
         engine.world.gravity.y = 0.3;
 
-        // Create walls
         const wallThickness = 50;
         const walls = [
             Bodies.rectangle(canvas.width / 2, -wallThickness / 2, canvas.width, wallThickness, { isStatic: true }),
@@ -69,7 +67,7 @@
         ];
         Composite.add(world, walls);
 
-        function createLiquidBody(x, y, radius, particleRadius, svgElement) {
+        function createLiquidBody(x, y, radius, particleRadius, color) {
             const group = Body.nextGroup(true);
             const particleOptions = {
                 friction: 0.05,
@@ -78,11 +76,11 @@
                 collisionFilter: { group: group },
                 render: { visible: false }
             };
-            
+
             const particles = [];
             const rows = Math.ceil(radius * 2 / particleRadius);
             const cols = Math.ceil(radius * 2 / particleRadius);
-            
+
             for (let i = 0; i < rows; i++) {
                 for (let j = 0; j < cols; j++) {
                     const particleX = x - radius + j * particleRadius;
@@ -92,7 +90,7 @@
                     }
                 }
             }
-            
+
             const constraints = [];
             for (let i = 0; i < particles.length; i++) {
                 const particleA = particles[i];
@@ -112,8 +110,7 @@
                     }
                 }
             }
-            
-            // Add constraints to maintain circular shape
+
             const centerParticle = particles[Math.floor(particles.length / 2)];
             particles.forEach(particle => {
                 if (particle !== centerParticle) {
@@ -128,43 +125,26 @@
                     );
                 }
             });
-            
+
             const liquidBody = Composite.create({ bodies: particles, constraints: constraints });
-            liquidBody.svgElement = svgElement;
-            liquidBody.originalRadius = radius;
+            liquidBody.color = color;
             return liquidBody;
         }
 
-        // Load SVG file
-        async function loadSVG(url) {
-            const response = await fetch(url);
-            const svgText = await response.text();
-            const parser = new DOMParser();
-            const svgDoc = parser.parseFromString(svgText, 'image/svg+xml');
-            const svgElement = svgDoc.documentElement;
-            return svgElement;
+        const blobs = [];
+        const blobCount = 10;
+
+        for (let i = 0; i < blobCount; i++) {
+            const radius = Common.random(60, 100);
+            const x = Common.random(radius + wallThickness, canvas.width - radius - wallThickness);
+            const y = Common.random(radius + wallThickness, canvas.height - radius - wallThickness);
+            const color = `hsl(${Math.random() * 360}, 80%, 60%)`;
+
+            const blob = createLiquidBody(x, y, radius, 15, color);
+            Composite.add(world, blob);
+            blobs.push(blob);
         }
 
-        // Create blobs with SVG mapping
-        async function createBlobs() {
-            const svgElement = await loadSVG('walk0001.svg');
-            const blobs = [];
-            const blobCount = 1;  // Reduced to 1 for simplicity
-
-            for (let i = 0; i < blobCount; i++) {
-                const radius = 100;  // Fixed size for simplicity
-                const x = canvas.width / 2;
-                const y = canvas.height / 2;
-                
-                const blob = createLiquidBody(x, y, radius, 15, svgElement);
-                Composite.add(world, blob);
-                blobs.push(blob);
-            }
-
-            return blobs;
-        }
-
-        // Add mouse control
         const mouse = Mouse.create(render.canvas),
               mouseConstraint = MouseConstraint.create(engine, {
                   mouse: mouse,
@@ -178,69 +158,33 @@
 
         render.mouse = mouse;
 
-        // Initialize the simulation
-        let blobs = [];
-        async function init() {
-            blobs = await createBlobs();
-            
-            // Fit the render viewport to the scene
-            Render.lookAt(render, {
-                min: { x: 0, y: 0 },
-                max: { x: canvas.width, y: canvas.height }
-            });
-
-            // Start the custom rendering
-            Events.on(render, 'afterRender', renderBlobs);
-        }
-
-        // Custom rendering function
-        function renderBlobs() {
+        // Load the SVG image
+        const svgImage = new Image();
+        svgImage.src = 'walk0001.SVG';
+        
+        // Custom rendering
+        Events.on(render, 'afterRender', function() {
             const ctx = render.context;
-            ctx.globalCompositeOperation = 'source-over';
-            
+            ctx.globalCompositeOperation = 'lighter';
+
             blobs.forEach(blob => {
                 const particles = blob.bodies;
-                const svgElement = blob.svgElement;
-                
-                // Create a path from the particles
-                ctx.beginPath();
-                particles.forEach((particle, index) => {
-                    if (index === 0) {
-                        ctx.moveTo(particle.position.x, particle.position.y);
-                    } else {
-                        ctx.lineTo(particle.position.x, particle.position.y);
-                    }
+
+                // Draw SVG at each particle position
+                particles.forEach(particle => {
+                    const size = 30; // Set the desired size of the SVG
+                    ctx.drawImage(svgImage, particle.position.x - size / 2, particle.position.y - size / 2, size, size);
                 });
-                ctx.closePath();
-                
-                // Use the path as a clipping mask
-                ctx.save();
-                ctx.clip();
-                
-                // Draw the SVG
-                const svgString = new XMLSerializer().serializeToString(svgElement);
-                const img = new Image();
-                img.onload = () => {
-                    const scale = (blob.originalRadius * 2) / Math.max(svgElement.width.baseVal.value, svgElement.height.baseVal.value);
-                    const centerX = particles.reduce((sum, p) => sum + p.position.x, 0) / particles.length;
-                    const centerY = particles.reduce((sum, p) => sum + p.position.y, 0) / particles.length;
-                    
-                    ctx.drawImage(img, 
-                        centerX - (svgElement.width.baseVal.value * scale) / 2, 
-                        centerY - (svgElement.height.baseVal.value * scale) / 2, 
-                        svgElement.width.baseVal.value * scale, 
-                        svgElement.height.baseVal.value * scale
-                    );
-                    
-                    ctx.restore();
-                };
-                img.src = 'data:image/svg+xml;base64,' + btoa(svgString);
             });
-        }
 
-        init();
+            ctx.globalCompositeOperation = 'source-over';
+        });
 
-        // Handle window resize
+        Render.lookAt(render, {
+            min: { x: 0, y: 0 },
+            max: { x: canvas.width, y: canvas.height }
+        });
+
         window.addEventListener('resize', () => {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
@@ -253,12 +197,11 @@
                 max: { x: canvas.width, y: canvas.height }
             });
 
-            // Update wall positions
             Body.setPosition(walls[0], { x: canvas.width / 2, y: -wallThickness / 2 });
             Body.setPosition(walls[1], { x: canvas.width / 2, y: canvas.height + wallThickness / 2 });
             Body.setPosition(walls[2], { x: -wallThickness / 2, y: canvas.height / 2 });
             Body.setPosition(walls[3], { x: canvas.width + wallThickness / 2, y: canvas.height / 2 });
-            
+
             Body.setVertices(walls[0], Matter.Vertices.fromPath(`0 0 ${canvas.width} 0 ${canvas.width} ${wallThickness} 0 ${wallThickness}`));
             Body.setVertices(walls[1], Matter.Vertices.fromPath(`0 0 ${canvas.width} 0 ${canvas.width} ${wallThickness} 0 ${wallThickness}`));
             Body.setVertices(walls[2], Matter.Vertices.fromPath(`0 0 ${wallThickness} 0 ${wallThickness} ${canvas.height} 0 ${canvas.height}`));
