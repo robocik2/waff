@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Firm Liquid-like Soft Body Simulation with Image Deformation</title>
+    <title>Image Deformation Based on Soft Body Simulation</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.18.0/matter.min.js"></script>
     <style>
         body, html {
@@ -27,9 +27,6 @@
               Body = Matter.Body,
               Composite = Matter.Composite,
               Constraint = Matter.Constraint,
-              Mouse = Matter.Mouse,
-              MouseConstraint = Matter.MouseConstraint,
-              Common = Matter.Common,
               Vector = Matter.Vector,
               Events = Matter.Events;
 
@@ -130,59 +127,50 @@
             blobs.push(blob);
         }
 
-        const mouse = Mouse.create(render.canvas),
-              mouseConstraint = MouseConstraint.create(engine, {
-                  mouse: mouse,
-                  constraint: {
-                      stiffness: 0.2,
-                      render: { visible: false }
-                  }
-              });
-
-        Composite.add(world, mouseConstraint);
-
-        render.mouse = mouse;
-
         // Load the image to deform
         const img = new Image();
         img.src = 'walk0001.svg';  // Change to your image URL
 
         img.onload = function() {
-            // Calculate image size
             const imgWidth = 200;  // Adjust to fit your image dimensions
             const imgHeight = 200;
-
-            // Subdivide image grid according to particle positions
-            const gridCols = 10;  // Number of image columns (should match number of particles)
-            const gridRows = 10;  // Number of image rows (should match number of particles)
-            const cellWidth = imgWidth / gridCols;
-            const cellHeight = imgHeight / gridRows;
 
             // Custom rendering
             Events.on(render, 'afterRender', function() {
                 const ctx = render.context;
-
-                // Clear previous frame
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-                // For each blob, calculate deformation based on particle positions
+                ctx.clearRect(0, 0, canvas.width, canvas.height);  // Clear previous frame
+                
+                // Deform image using control points (particles)
                 blobs.forEach(blob => {
                     const particles = blob.bodies;
 
-                    // Map each image cell to a corresponding particle position
-                    particles.forEach((particle, index) => {
-                        const col = index % gridCols;
-                        const row = Math.floor(index / gridCols);
-                        
-                        const sx = col * cellWidth;
-                        const sy = row * cellHeight;
+                    // Get the center particle (or an approximation)
+                    const centerParticle = particles[Math.floor(particles.length / 2)];
+                    const offsetX = centerParticle.position.x - imgWidth / 2;
+                    const offsetY = centerParticle.position.y - imgHeight / 2;
 
-                        const dx = particle.position.x - cellWidth / 2;
-                        const dy = particle.position.y - cellHeight / 2;
+                    // Draw the image at the center of the soft body
+                    ctx.save();
+                    ctx.translate(offsetX, offsetY);
 
-                        // Draw each section of the image at the corresponding particle position
-                        ctx.drawImage(img, sx, sy, cellWidth, cellHeight, dx, dy, cellWidth, cellHeight);
-                    });
+                    // Map image deformation by stretching it based on particle movements
+                    const topLeft = particles[0].position;
+                    const topRight = particles[Math.floor(particles.length / 3)].position;
+                    const bottomLeft = particles[particles.length - Math.floor(particles.length / 3)].position;
+                    const bottomRight = particles[particles.length - 1].position;
+
+                    // Transform image using control points
+                    ctx.beginPath();
+                    ctx.moveTo(topLeft.x - offsetX, topLeft.y - offsetY);
+                    ctx.lineTo(topRight.x - offsetX, topRight.y - offsetY);
+                    ctx.lineTo(bottomRight.x - offsetX, bottomRight.y - offsetY);
+                    ctx.lineTo(bottomLeft.x - offsetX, bottomLeft.y - offsetY);
+                    ctx.closePath();
+                    ctx.clip();
+
+                    // Draw the image stretched
+                    ctx.drawImage(img, 0, 0, imgWidth, imgHeight);
+                    ctx.restore();
                 });
             });
         };
