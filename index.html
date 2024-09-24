@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Soft Body Blob Simulation</title>
+    <title>Soft Body Image Deformation</title>
     <style>
         * {
             margin: 0;
@@ -17,7 +17,6 @@
         }
         canvas {
             display: block;
-            filter: blur(8px); /* Adds the dreamlike blur effect */
         }
     </style>
 </head>
@@ -28,27 +27,39 @@
     <script>
         const { Engine, Render, Runner, World, Bodies, Composite, Composites, Constraint, Mouse, MouseConstraint, Events } = Matter;
 
-        // Setup the engine
         const engine = Engine.create();
         const world = engine.world;
         world.gravity.y = 1; // Stronger gravity
 
-        // Setup the canvas and renderer
+        // Set up the canvas and renderer
         const canvas = document.getElementById('blobCanvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
         const render = Render.create({
             canvas: canvas,
             engine: engine,
             options: {
                 width: window.innerWidth,
                 height: window.innerHeight,
-                background: '#f0f0f0',
-                wireframes: false // No wireframes, just solid rendering
+                wireframes: false
             }
         });
 
-        // Function to create a large soft body blob (a cluster of connected circles)
+        // Load the SVG image
+        const image = new Image();
+        image.src = 'walk0001.svg';  // The SVG image you provided
+
+        image.onload = function() {
+            // Once the image is loaded, we can start the simulation
+            Engine.run(engine);
+            Render.run(render);
+            animate();
+        }
+
+        // Function to create a large soft body blob (cluster of connected circles)
         function createLargeSoftBody(x, y, gridWidth, gridHeight, particleSize) {
-            const group = Body.nextGroup(true);
             const softBody = Composites.softBody(
                 x - (gridWidth * particleSize) / 2,
                 y - (gridHeight * particleSize) / 2,
@@ -59,7 +70,7 @@
                 { 
                     friction: 0.001, 
                     restitution: 0.8,
-                    render: { fillStyle: '#FF6347' } 
+                    render: { visible: false } 
                 },
                 { 
                     stiffness: 0.05,
@@ -71,14 +82,12 @@
             return softBody;
         }
 
-        // Create two large soft bodies (blobs) that cover about 70% of the screen space
+        // Create a soft body that will be mapped to the image
         const screenWidth = window.innerWidth;
         const screenHeight = window.innerHeight;
+        const largeBlob = createLargeSoftBody(screenWidth * 0.5, screenHeight / 2, 10, 10, 30);
 
-        const largeBlob1 = createLargeSoftBody(screenWidth * 0.3, screenHeight / 2, 10, 10, 30);  // Larger soft body 1
-        const largeBlob2 = createLargeSoftBody(screenWidth * 0.7, screenHeight / 2, 10, 10, 30);  // Larger soft body 2
-
-        // Create invisible static walls around the screen borders
+        // Create static walls (invisible)
         const walls = [
             Bodies.rectangle(screenWidth / 2, 0, screenWidth, 50, { isStatic: true, render: { visible: false } }),  // Top wall
             Bodies.rectangle(screenWidth / 2, screenHeight, screenWidth, 50, { isStatic: true, render: { visible: false } }),  // Bottom wall
@@ -87,15 +96,37 @@
         ];
         World.add(world, walls);
 
-        // Handle window resize
-        window.addEventListener('resize', function() {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-            Render.lookAt(render, {
-                min: { x: 0, y: 0 },
-                max: { x: canvas.width, y: canvas.height }
-            });
-        });
+        // Function to map the image onto the soft body
+        function mapImageToSoftBody(softBody) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const blobWidth = 300; // Adjust to match the actual width of the image
+            const blobHeight = 300; // Adjust to match the actual height of the image
+
+            // Loop through the soft body's particles and map their positions to the image
+            for (let i = 0; i < softBody.bodies.length; i++) {
+                const particle = softBody.bodies[i];
+                const x = particle.position.x;
+                const y = particle.position.y;
+
+                // Map each particle's position to a part of the image
+                // We divide the image into smaller sections and map them to the corresponding particle
+                const imgX = (i % 10) * blobWidth / 10;
+                const imgY = Math.floor(i / 10) * blobHeight / 10;
+
+                ctx.drawImage(image, imgX, imgY, blobWidth / 10, blobHeight / 10, x - 15, y - 15, 30, 30);
+            }
+        }
+
+        // Main simulation loop
+        function animate() {
+            Engine.update(engine);
+
+            // Draw the image mapped to the soft body
+            mapImageToSoftBody(largeBlob);
+
+            requestAnimationFrame(animate);
+        }
 
         // Add mouse control and mouse interaction visibility
         const mouse = Mouse.create(render.canvas);
@@ -109,33 +140,6 @@
             }
         });
         World.add(world, mouseConstraint);
-
-        // Add a hover effect to show collision with cursor
-        Events.on(mouseConstraint, 'mousemove', function(event) {
-            const mousePosition = event.mouse.position;
-            const bodies = Composite.allBodies(world);
-
-            for (let i = 0; i < bodies.length; i++) {
-                const body = bodies[i];
-                const dx = body.position.x - mousePosition.x;
-                const dy = body.position.y - mousePosition.y;
-                const distance = Math.sqrt(dx * dx + dy * dy);
-
-                if (distance < 50) {  // Adjust hover effect threshold
-                    body.render.fillStyle = '#FF4500'; // Change color on hover
-                } else {
-                    body.render.fillStyle = '#FF6347'; // Reset color
-                }
-            }
-        });
-
-        // Run the engine
-        Engine.run(engine);
-        Render.run(render);
-
-        // Run the simulation
-        const runner = Runner.create();
-        Runner.run(runner, engine);
     </script>
 </body>
 </html>
