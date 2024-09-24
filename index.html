@@ -3,14 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Image Deformation Based on Soft Body Simulation</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.18.0/matter.min.js"></script>
+    <title>Blob Simulation</title>
     <style>
-        body, html {
+        * {
             margin: 0;
             padding: 0;
-            overflow: hidden;
-            background-color: #000;
         }
         canvas {
             display: block;
@@ -18,175 +15,87 @@
     </style>
 </head>
 <body>
-    <canvas id="canvas"></canvas>
+    <canvas id="blobCanvas"></canvas>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
     <script>
-        const Engine = Matter.Engine,
-              Render = Matter.Render,
-              Runner = Matter.Runner,
-              Bodies = Matter.Bodies,
-              Body = Matter.Body,
-              Composite = Matter.Composite,
-              Constraint = Matter.Constraint,
-              Vector = Matter.Vector,
-              Events = Matter.Events;
+        // Setup Matter.js
+        const { Engine, Render, Runner, World, Bodies, Body, Events, Mouse, MouseConstraint } = Matter;
 
-        const engine = Engine.create(),
-              world = engine.world;
+        // Create an engine
+        const engine = Engine.create();
+        const world = engine.world;
 
-        const canvas = document.getElementById('canvas');
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-
+        // Get canvas element and set up rendering
+        const canvas = document.getElementById('blobCanvas');
         const render = Render.create({
             canvas: canvas,
             engine: engine,
             options: {
-                width: canvas.width,
-                height: canvas.height,
+                width: window.innerWidth,
+                height: window.innerHeight,
                 wireframes: false,
-                background: 'transparent'
+                background: '#f0f0f0'
             }
         });
 
-        Render.run(render);
-
-        const runner = Runner.create();
-        Runner.run(runner, engine);
-
-        // Set gravity
-        engine.world.gravity.y = 0.3;
-
-        // Create walls
-        const wallThickness = 50;
-        const walls = [
-            Bodies.rectangle(canvas.width / 2, -wallThickness / 2, canvas.width, wallThickness, { isStatic: true }),
-            Bodies.rectangle(canvas.width / 2, canvas.height + wallThickness / 2, canvas.width, wallThickness, { isStatic: true }),
-            Bodies.rectangle(-wallThickness / 2, canvas.height / 2, wallThickness, canvas.height, { isStatic: true }),
-            Bodies.rectangle(canvas.width + wallThickness / 2, canvas.height / 2, wallThickness, canvas.height, { isStatic: true })
-        ];
-        Composite.add(world, walls);
-
-        function createLiquidBody(x, y, radius, particleRadius) {
-            const group = Body.nextGroup(true);
-            const particleOptions = {
-                friction: 0.05,
-                restitution: 0.2,
-                density: 0.002,
-                collisionFilter: { group: group },
-                render: { visible: false }
-            };
-
-            const particles = [];
-            const rows = Math.ceil(radius * 2 / particleRadius);
-            const cols = Math.ceil(radius * 2 / particleRadius);
-
-            for (let i = 0; i < rows; i++) {
-                for (let j = 0; j < cols; j++) {
-                    const particleX = x - radius + j * particleRadius;
-                    const particleY = y - radius + i * particleRadius;
-                    if (Vector.magnitude(Vector.sub({x: particleX, y: particleY}, {x, y})) <= radius) {
-                        particles.push(Bodies.circle(particleX, particleY, particleRadius / 2, particleOptions));
-                    }
-                }
-            }
-
-            const constraints = [];
-            for (let i = 0; i < particles.length; i++) {
-                const particleA = particles[i];
-                for (let j = i + 1; j < particles.length; j++) {
-                    const particleB = particles[j];
-                    const distance = Vector.magnitude(Vector.sub(particleA.position, particleB.position));
-                    if (distance < particleRadius * 2.5) {
-                        constraints.push(
-                            Constraint.create({
-                                bodyA: particleA,
-                                bodyB: particleB,
-                                stiffness: 0.04,
-                                damping: 0.1,
-                                render: { visible: false }
-                            })
-                        );
-                    }
-                }
-            }
-
-            const liquidBody = Composite.create({ bodies: particles, constraints: constraints });
-            return liquidBody;
-        }
-
-        const blobs = [];
-        const blobCount = 1;
-
-        for (let i = 0; i < blobCount; i++) {
-            const radius = 100;
-            const x = Common.random(radius + wallThickness, canvas.width - radius - wallThickness);
-            const y = Common.random(radius + wallThickness, canvas.height - radius - wallThickness);
-
-            const blob = createLiquidBody(x, y, radius, 15);
-            Composite.add(world, blob);
-            blobs.push(blob);
-        }
-
-        // Load the image to deform
-        const img = new Image();
-        img.src = 'walk0001.svg';  // Change to your image URL
-
-        img.onload = function() {
-            const imgWidth = 200;  // Adjust to fit your image dimensions
-            const imgHeight = 200;
-
-            // Custom rendering
-            Events.on(render, 'afterRender', function() {
-                const ctx = render.context;
-                ctx.clearRect(0, 0, canvas.width, canvas.height);  // Clear previous frame
-                
-                // Deform image using control points (particles)
-                blobs.forEach(blob => {
-                    const particles = blob.bodies;
-
-                    // Get the center particle (or an approximation)
-                    const centerParticle = particles[Math.floor(particles.length / 2)];
-                    const offsetX = centerParticle.position.x - imgWidth / 2;
-                    const offsetY = centerParticle.position.y - imgHeight / 2;
-
-                    // Draw the image at the center of the soft body
-                    ctx.save();
-                    ctx.translate(offsetX, offsetY);
-
-                    // Map image deformation by stretching it based on particle movements
-                    const topLeft = particles[0].position;
-                    const topRight = particles[Math.floor(particles.length / 3)].position;
-                    const bottomLeft = particles[particles.length - Math.floor(particles.length / 3)].position;
-                    const bottomRight = particles[particles.length - 1].position;
-
-                    // Transform image using control points
-                    ctx.beginPath();
-                    ctx.moveTo(topLeft.x - offsetX, topLeft.y - offsetY);
-                    ctx.lineTo(topRight.x - offsetX, topRight.y - offsetY);
-                    ctx.lineTo(bottomRight.x - offsetX, bottomRight.y - offsetY);
-                    ctx.lineTo(bottomLeft.x - offsetX, bottomLeft.y - offsetY);
-                    ctx.closePath();
-                    ctx.clip();
-
-                    // Draw the image stretched
-                    ctx.drawImage(img, 0, 0, imgWidth, imgHeight);
-                    ctx.restore();
-                });
-            });
-        };
-
-        window.addEventListener('resize', () => {
+        // Resize canvas on window resize
+        window.addEventListener('resize', function() {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
-            render.canvas.width = canvas.width;
-            render.canvas.height = canvas.height;
-            render.bounds.max.x = canvas.width;
-            render.bounds.max.y = canvas.height;
             Render.lookAt(render, {
                 min: { x: 0, y: 0 },
                 max: { x: canvas.width, y: canvas.height }
             });
         });
+
+        // Create soft bodies (blobs)
+        function createBlob(x, y) {
+            const blob = Bodies.circle(x, y, 100, {
+                restitution: 0.9,
+                friction: 0.1,
+                render: {
+                    fillStyle: '#FF6347'
+                }
+            });
+            return blob;
+        }
+
+        // Create two blobs
+        const blob1 = createBlob(300, 100);
+        const blob2 = createBlob(500, 100);
+
+        // Add blobs to the world
+        World.add(world, [blob1, blob2]);
+
+        // Add walls (screen borders)
+        const walls = [
+            Bodies.rectangle(window.innerWidth / 2, 0, window.innerWidth, 50, { isStatic: true }),  // Top wall
+            Bodies.rectangle(window.innerWidth / 2, window.innerHeight, window.innerWidth, 50, { isStatic: true }),  // Bottom wall
+            Bodies.rectangle(0, window.innerHeight / 2, 50, window.innerHeight, { isStatic: true }),  // Left wall
+            Bodies.rectangle(window.innerWidth, window.innerHeight / 2, 50, window.innerHeight, { isStatic: true })   // Right wall
+        ];
+
+        World.add(world, walls);
+
+        // Mouse interaction (blob collision with cursor)
+        const mouse = Mouse.create(render.canvas);
+        const mouseConstraint = MouseConstraint.create(engine, {
+            mouse: mouse,
+            constraint: {
+                stiffness: 0.2,
+                render: { visible: false }
+            }
+        });
+        World.add(world, mouseConstraint);
+
+        // Run the engine
+        Engine.run(engine);
+        Render.run(render);
+
+        // Run the simulation
+        const runner = Runner.create();
+        Runner.run(runner, engine);
     </script>
 </body>
 </html>
