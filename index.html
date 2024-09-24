@@ -17,6 +17,7 @@
         }
         canvas {
             display: block;
+            filter: blur(8px); /* Adds the dreamlike blur effect */
         }
     </style>
 </head>
@@ -25,12 +26,12 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
     <script>
-        const { Engine, Render, Runner, World, Bodies, Body, Composite, Composites, Constraint, Mouse, MouseConstraint, Events } = Matter;
+        const { Engine, Render, Runner, World, Bodies, Composite, Composites, Constraint, Mouse, MouseConstraint, Events } = Matter;
 
         // Setup the engine
         const engine = Engine.create();
         const world = engine.world;
-        world.gravity.y = 1; // Strong gravity
+        world.gravity.y = 1; // Stronger gravity
 
         // Setup the canvas and renderer
         const canvas = document.getElementById('blobCanvas');
@@ -41,7 +42,7 @@
                 width: window.innerWidth,
                 height: window.innerHeight,
                 background: '#f0f0f0',
-                wireframes: false
+                wireframes: false // No wireframes, just solid rendering
             }
         });
 
@@ -77,12 +78,12 @@
         const largeBlob1 = createLargeSoftBody(screenWidth * 0.3, screenHeight / 2, 10, 10, 30);  // Larger soft body 1
         const largeBlob2 = createLargeSoftBody(screenWidth * 0.7, screenHeight / 2, 10, 10, 30);  // Larger soft body 2
 
-        // Create static walls around the screen borders
+        // Create invisible static walls around the screen borders
         const walls = [
-            Bodies.rectangle(screenWidth / 2, 0, screenWidth, 50, { isStatic: true }),  // Top wall
-            Bodies.rectangle(screenWidth / 2, screenHeight, screenWidth, 50, { isStatic: true }),  // Bottom wall
-            Bodies.rectangle(0, screenHeight / 2, 50, screenHeight, { isStatic: true }),  // Left wall
-            Bodies.rectangle(screenWidth, screenHeight / 2, 50, screenHeight, { isStatic: true })   // Right wall
+            Bodies.rectangle(screenWidth / 2, 0, screenWidth, 50, { isStatic: true, render: { visible: false } }),  // Top wall
+            Bodies.rectangle(screenWidth / 2, screenHeight, screenWidth, 50, { isStatic: true, render: { visible: false } }),  // Bottom wall
+            Bodies.rectangle(0, screenHeight / 2, 50, screenHeight, { isStatic: true, render: { visible: false } }),  // Left wall
+            Bodies.rectangle(screenWidth, screenHeight / 2, 50, screenHeight, { isStatic: true, render: { visible: false } })   // Right wall
         ];
         World.add(world, walls);
 
