@@ -37,29 +37,20 @@
         }
         
         #custom-cursor {
-            width: 110vw;
-            height: 110vh;
+            position: fixed;
+            width: 400vw;
+            height: 400vh;
             pointer-events: none;
             z-index: 9999;
             transform: translateX(-50%);
             background: url('a man.png') no-repeat center center;
-            background-size: cover;$1
+            background-size: cover;
         }
 
         @keyframes sway {
             0% { transform: translateX(-50%) rotate(2deg); }
             50% { transform: translateX(-50%) rotate(-2deg); }
             100% { transform: translateX(-50%) rotate(2deg); }
-        }
-
-        @keyframes swivel {
-            0% { transform: translateX(-50%) rotateY(0deg); }
-            50% { transform: translateX(-50%) rotateY(15deg); }
-            100% { transform: translateX(-50%) rotateY(0deg); }
-        }
-
-        #custom-cursor.moving {
-            animation: swivel 1s ease-in-out infinite;
         }
 
         #custom-cursor.active {
@@ -151,13 +142,6 @@
                 cursor.classList.add('active');
             } else {
                 cursor.classList.remove('active');
-            }
-
-            // Add swivel animation while moving
-            if (Math.abs(currentX - targetX) > 1) {
-                cursor.classList.add('moving');
-            } else {
-                cursor.classList.remove('moving');
             }
 
             requestAnimationFrame(animate);
