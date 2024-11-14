@@ -36,25 +36,25 @@
             text-decoration: none;
         }
         
-          #custom-cursor {
-         position: fixed;
-    width: auto;
-    height: auto;
-    max-width: 70vw;
-    max-height: 70vh;
-    top: 50%;
-    left: 50%;
-    pointer-events: none;
-    z-index: 9999;
-    transform: translate(-50%, -50%);
-    background: url('a man.png') no-repeat center center;
-    background-size: contain; /* Ensures the image scales without cutting off */
+        #custom-cursor {
+            position: fixed;
+            width: auto;
+            height: auto;
+            max-width: 70vw;
+            max-height: 70vh;
+            top: 50%;
+            left: 50%;
+            pointer-events: none;
+            z-index: 9999;
+            transform: translate(-50%, -50%);
+            background: url('a man.png') no-repeat center center;
+            background-size: contain; /* Ensures the image scales without cutting off */
         }
 
         @keyframes sway {
-            0% { transform: translateX(-50%) rotate(2deg); }
-            50% { transform: translateX(-50%) rotate(-2deg); }
-            100% { transform: translateX(-50%) rotate(2deg); }
+            0% { transform: translate(-50%, -50%) rotate(2deg); }
+            50% { transform: translate(-50%, -50%) rotate(-2deg); }
+            100% { transform: translate(-50%, -50%) rotate(2deg); }
         }
 
         #custom-cursor.active {
