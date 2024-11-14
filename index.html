@@ -3,143 +3,175 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Soft Body Image Deformation</title>
+    <title>maks rz/robocik.2</title>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+
     <style>
-        * {
+        html, body {
             margin: 0;
             padding: 0;
-            box-sizing: border-box;
-        }
-        body, html {
-            height: 100%;
             overflow: hidden;
-            background-color: #f0f0f0;
+            font-family: Helvetica, Arial, sans-serif;
+            background-color: #a1725d;
         }
-        canvas {
-            display: block;
+        * {
+            cursor: none !important;
+        }
+        .overlay {
+            position: fixed;
+            color: white;
+            font-size: 24px;
+            padding: 10px;
+            z-index: 10;
+        }
+        #title { top: 10%; left: 50%; transform: translateX(-50%); }
+        #ig { top: 10%; right: 10%; }
+        #animation { top: 10%; left: 10%; }
+        #art { bottom: 10%; left: 10%; }
+        #contact { bottom: 10%; right: 10%; }
+        .overlay a {
+            color: white;
+            text-decoration: none;
+        }
+        
+        #custom-cursor {
+            position: fixed;
+            width: 300px;
+            height: 100vh;
+            pointer-events: none;
+            z-index: 9999;
+            transform: translateX(-50%);
+            background: url('a man.png') no-repeat center center;
+            background-size: contain;
+        }
+
+        @keyframes sway {
+            0% { transform: translateX(-50%) rotate(2deg); }
+            50% { transform: translateX(-50%) rotate(-2deg); }
+            100% { transform: translateX(-50%) rotate(2deg); }
+        }
+
+        #custom-cursor.active {
+            animation: sway 3s ease-in-out infinite;
+        }
+
+        #black-ellipse {
+            position: absolute;
+            width: 200px;
+            height: 200px;
+            background-color: black;
+            border-radius: 50%;
+            transform: scale(0);
+            transition: transform 1s ease;
+            z-index: 999;
+        }
+
+        #clicked-content {
+            position: fixed;
+            color: white;
+            font-size: 16px;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            opacity: 0;
+            transition: opacity 0.5s ease;
+            z-index: 1001;
+            max-width: 80%;
+            max-height: 80vh;
+            margin: 0 auto;
+            overflow-y: auto;
+        }
+
+        #close-btn {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            font-size: 36px;
+            color: white;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+            z-index: 1001;
         }
     </style>
 </head>
 <body>
-    <canvas id="blobCanvas"></canvas>
+    <div id="custom-cursor"></div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+    <div id="title" class="overlay"><a href="#" data-title="maks-info">maks rz</a></div>
+    <div id="animation" class="overlay"><a href="#" data-title="Animation">animation</a></div>
+    <div id="clicked-content"></div>
+    <div id="ig" class="overlay"><a href="#" data-title="Instagram">ig</a></div>
+    <div id="art" class="overlay"><a href="#" data-title="Art">art</a></div>
+    <div id="contact" class="overlay"><a href="#" data-title="Contact">contact</a></div>
+
+    <div id="black-ellipse"></div>
+    <div id="close-btn">✕</div>
+
     <script>
-        const { Engine, Render, Runner, World, Bodies, Composite, Composites, Constraint, Mouse, MouseConstraint, Events } = Matter;
-
-        const engine = Engine.create();
-        const world = engine.world;
-        world.gravity.y = 1; // Stronger gravity
-
-        // Set up the canvas and renderer
-        const canvas = document.getElementById('blobCanvas');
-        const ctx = canvas.getContext('2d');
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-
-        const render = Render.create({
-            canvas: canvas,
-            engine: engine,
-            options: {
-                width: window.innerWidth,
-                height: window.innerHeight,
-                wireframes: false
-            }
-        });
-
-        // Load the SVG image
-        const image = new Image();
-        image.src = 'walk0001.svg';  // The SVG image you provided
-
-        image.onload = function() {
-            // Once the image is loaded, we can start the simulation
-            Engine.run(engine);
-            Render.run(render);
-            animate();
+        const cursor = document.getElementById('custom-cursor');
+        let isNearLink = false;
+        let currentX = window.innerWidth / 2;
+        let targetX = window.innerWidth / 2;
+        
+        function lerp(start, end, factor) {
+            return start + (end - start) * factor;
         }
 
-        // Function to create a large soft body blob (cluster of connected circles)
-        function createLargeSoftBody(x, y, gridWidth, gridHeight, particleSize) {
-            const softBody = Composites.softBody(
-                x - (gridWidth * particleSize) / 2,
-                y - (gridHeight * particleSize) / 2,
-                gridWidth, gridHeight,  // Number of particles in x and y directions
-                0, 0,                   // Padding between particles
-                true,                   // Whether particles are connected with constraints
-                particleSize,            // Particle radius
-                { 
-                    friction: 0.001, 
-                    restitution: 0.8,
-                    render: { visible: false } 
-                },
-                { 
-                    stiffness: 0.05,
-                    render: { visible: false } 
-                }
-            );
-
-            Composite.add(world, softBody);
-            return softBody;
-        }
-
-        // Create a soft body that will be mapped to the image
-        const screenWidth = window.innerWidth;
-        const screenHeight = window.innerHeight;
-        const largeBlob = createLargeSoftBody(screenWidth * 0.5, screenHeight / 2, 10, 10, 30);
-
-        // Create static walls (invisible)
-        const walls = [
-            Bodies.rectangle(screenWidth / 2, 0, screenWidth, 50, { isStatic: true, render: { visible: false } }),  // Top wall
-            Bodies.rectangle(screenWidth / 2, screenHeight, screenWidth, 50, { isStatic: true, render: { visible: false } }),  // Bottom wall
-            Bodies.rectangle(0, screenHeight / 2, 50, screenHeight, { isStatic: true, render: { visible: false } }),  // Left wall
-            Bodies.rectangle(screenWidth, screenHeight / 2, 50, screenHeight, { isStatic: true, render: { visible: false } })   // Right wall
-        ];
-        World.add(world, walls);
-
-        // Function to map the image onto the soft body
-        function mapImageToSoftBody(softBody) {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            const blobWidth = 300; // Adjust to match the actual width of the image
-            const blobHeight = 300; // Adjust to match the actual height of the image
-
-            // Loop through the soft body's particles and map their positions to the image
-            for (let i = 0; i < softBody.bodies.length; i++) {
-                const particle = softBody.bodies[i];
-                const x = particle.position.x;
-                const y = particle.position.y;
-
-                // Map each particle's position to a part of the image
-                // We divide the image into smaller sections and map them to the corresponding particle
-                const imgX = (i % 10) * blobWidth / 10;
-                const imgY = Math.floor(i / 10) * blobHeight / 10;
-
-                ctx.drawImage(image, imgX, imgY, blobWidth / 10, blobHeight / 10, x - 15, y - 15, 30, 30);
-            }
-        }
-
-        // Main simulation loop
         function animate() {
-            Engine.update(engine);
+            // Smooth follow with delay
+            currentX = lerp(currentX, targetX, 0.03); // Lower number = more delay
+            cursor.style.left = currentX + 'px';
 
-            // Draw the image mapped to the soft body
-            mapImageToSoftBody(largeBlob);
+            // Check if near any link
+            const links = document.querySelectorAll('.overlay a');
+            isNearLink = false;
+            
+            links.forEach(link => {
+                const rect = link.getBoundingClientRect();
+                const distance = Math.abs(currentX - (rect.left + rect.width/2));
+                
+                if (distance < 150) {
+                    isNearLink = true;
+                }
+            });
+
+            // Update cursor state
+            if (isNearLink) {
+                cursor.classList.add('active');
+            } else {
+                cursor.classList.remove('active');
+            }
 
             requestAnimationFrame(animate);
         }
 
-        // Add mouse control and mouse interaction visibility
-        const mouse = Mouse.create(render.canvas);
-        const mouseConstraint = MouseConstraint.create(engine, {
-            mouse: mouse,
-            constraint: {
-                stiffness: 0.2,
-                render: {
-                    visible: true
-                }
-            }
+        // Handle mouse movement - only update target
+        document.addEventListener('mousemove', (e) => {
+            targetX = e.clientX;
         });
-        World.add(world, mouseConstraint);
+
+        // Start animation loop
+        animate();
+
+        // Preserve original link functionality
+        document.querySelectorAll('.overlay a').forEach((link) => {
+            link.addEventListener('click', function (e) {
+                e.preventDefault();
+                const title = this.getAttribute('data-title');
+                
+                if (title === 'Animation') {
+                    setTimeout(() => {
+                        window.location.href = 'https://www.vimeo.com/maksrz';
+                    }, 2000);
+                } else if (title === 'Instagram') {
+                    setTimeout(() => {
+                        window.location.href = 'https://www.instagram.com/robocik.2';
+                    }, 2000);
+                }
+            });
+        });
     </script>
 </body>
 </html>
