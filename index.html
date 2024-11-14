@@ -35,6 +35,10 @@
       transition: left 0.8s cubic-bezier(0.2, 0.8, 0.2, 1);
     }
 
+    .following-image.move-right {
+      left: calc(100vw - 200px) !important;
+    }
+
     @keyframes walk {
       0% {
         transform: translate(-50%, -50%) rotate(-2deg) translateY(-20px);
@@ -54,11 +58,12 @@
 
     .nav-button {
       display: block;
-      font-size: 24px;
+      font-size: 48px;  /* Same as h1 */
       margin: 20px 0;
       color: #333;
       text-decoration: none;
       transition: color 0.3s;
+      font-weight: 700;  /* Bold like the title */
     }
 
     .nav-button:hover {
@@ -70,6 +75,7 @@
       margin: 10px 0;
       padding-left: 20px;
       list-style: none;
+      font-size: 48px;  /* Match the size */
     }
 
     .awards-section {
@@ -153,6 +159,7 @@
 
   <script>
     const image = document.querySelector('.following-image');
+    const navButtons = document.querySelectorAll('.nav-button');
     let mouseX = 0;
     const fixedY = window.innerHeight / 2;
 
@@ -166,6 +173,17 @@
     }
 
     updatePosition();
+
+    // Add hover events for nav buttons
+    navButtons.forEach(button => {
+      button.addEventListener('mouseenter', () => {
+        image.classList.add('move-right');
+      });
+      
+      button.addEventListener('mouseleave', () => {
+        image.classList.remove('move-right');
+      });
+    });
 
     // Enemies list toggle
     const enemiesButton = document.getElementById('enemies-button');
