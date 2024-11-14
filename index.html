@@ -10,6 +10,7 @@
       font-family: 'Playfair Display', serif;
       overflow: hidden;
       cursor: none;
+      color: #333;
     }
 
     .content {
@@ -17,6 +18,8 @@
       margin: 0 auto;
       line-height: 1.8;
       font-size: 18px;
+      position: relative;
+      z-index: 1;
     }
 
     .following-image {
@@ -26,9 +29,9 @@
       pointer-events: none;
       transform-origin: center center;
       z-index: 1000;
-      /* Fixed Y position, 50% from the top */
       top: 50%;
       animation: walk 0.5s infinite alternate ease-in-out;
+      transition: left 0.8s cubic-bezier(0.2, 0.8, 0.2, 1);
     }
 
     @keyframes walk {
@@ -42,24 +45,97 @@
         transform: translate(-50%, -50%) rotate(2deg) translateY(-20px);
       }
     }
+
+    h1 {
+      font-size: 48px;
+      margin-bottom: 40px;
+    }
+
+    .nav-button {
+      display: block;
+      font-size: 24px;
+      margin: 20px 0;
+      color: #333;
+      text-decoration: none;
+      transition: color 0.3s;
+    }
+
+    .nav-button:hover {
+      color: #666;
+    }
+
+    .enemies-list {
+      display: none;
+      margin: 10px 0;
+      padding-left: 20px;
+    }
+
+    .awards-section {
+      margin-top: 40px;
+    }
+
+    .awards-title {
+      font-size: 24px;
+      margin-bottom: 20px;
+    }
+
+    .awards-list {
+      list-style: none;
+      padding: 0;
+    }
+
+    .awards-list li {
+      margin-bottom: 15px;
+      font-style: italic;
+    }
   </style>
 </head>
 <body>
-  <img src="a man.png" alt="A man" class="following-image">
+  <img src="/api/placeholder/735/862" alt="A man" class="following-image">
   
   <div class="content">
-    <h1>Lorem Ipsum</h1>
-    <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.</p>
-    <p>Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.</p>
-    <p>Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo.</p>
-    <p>Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt.</p>
-    <p>Neque porro quisquam est, qui dolorem ipsum quia dolor sit amet, consectetur, adipisci velit, sed quia non numquam eius modi tempora incidunt ut labore et dolore magnam aliquam quaerat voluptatem.</p>
+    <h1>maks rz</h1>
+    
+    <a href="https://vimeo.com/maksrz" class="nav-button" target="_blank">Video</a>
+    <a href="https://instagram.com/robocik.2" class="nav-button" target="_blank">Art</a>
+    <a href="https://instagram.com/robocik.2" class="nav-button" target="_blank">Ig</a>
+    <a href="mailto:maksrzontkowski@gmail.com" class="nav-button">Contact</a>
+    
+    <div>
+      <a href="#" class="nav-button" id="enemies-button">list of enemies</a>
+      <ul class="enemies-list" id="enemies-list">
+        <li>1. damien</li>
+      </ul>
+    </div>
+
+    <div class="awards-section">
+      <div class="awards-title">My humble list of awards and festivals [For Martyr's Guidebook]</div>
+      <ul class="awards-list">
+        <li>*Sundance Film Festival 2024 Official Selection*</li>
+        <li>*ANNECY International Animation Festival 2024 Official Selection*</li>
+        <li>*OTTAWA Animation Festival Best Student Animation Prize*</li>
+        <li>*SPEKTRUM 2024 GRAND PRIZE*</li>
+        <li>*New Horizons Festival 2024 Official Selection*</li>
+        <li>*PICTOPLASMA 2024 Official Selection*</li>
+        <li>*FEST New Directors 2024 Official Selection*</li>
+        <li>*Rooftop Films 2024 Official Selection*</li>
+        <li>*Animator Festival 2024: II PRIZE*</li>
+        <li>*SFP Best Animated Films 2023, Best Student Film*</li>
+        <li>*Kaboom Animation Festival 2024: Special Mention*</li>
+        <li>*ŻUBROFFKA 2024: II Prize*</li>
+        <li>*Salute Your Shorts Festival 2024 Official Selection*</li>
+        <li>*Fest Anca 2024 Official Selection*</li>
+        <li>*HELSINKI INTERNATIONAL FILM FESTIVAL*</li>
+        <li>*TOHORROR 2024 GRAND PRIZE*</li>
+      </ul>
+      <p>& more.</p>
+    </div>
   </div>
 
   <script>
     const image = document.querySelector('.following-image');
     let mouseX = 0;
-    const fixedY = window.innerHeight / 2; // Fixed Y position
+    const fixedY = window.innerHeight / 2;
 
     document.addEventListener('mousemove', (e) => {
       mouseX = e.clientX;
@@ -71,6 +147,15 @@
     }
 
     updatePosition();
+
+    // Enemies list toggle
+    const enemiesButton = document.getElementById('enemies-button');
+    const enemiesList = document.getElementById('enemies-list');
+    
+    enemiesButton.addEventListener('click', (e) => {
+      e.preventDefault();
+      enemiesList.style.display = enemiesList.style.display === 'block' ? 'none' : 'block';
+    });
   </script>
 </body>
 </html>
