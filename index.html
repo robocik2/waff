@@ -1,13 +1,14 @@
 <!DOCTYPE html>
 <html>
 <head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&display=swap" rel="stylesheet">
   <style>
     body {
       margin: 0;
       padding: 0;
       background: #f5f5f5;
-      font-family: 'Times New Roman', serif;
+      font-family: 'Playfair Display', serif;
       cursor: none;
       color: #333;
       min-height: 100vh;
@@ -17,16 +18,17 @@
       max-width: 800px;
       margin: 0 auto;
       line-height: 1.8;
-      font-size: 18px;
+      font-size: clamp(16px, 2vw, 18px);
       position: relative;
       z-index: 1;
-      padding: 40px 20px 100px 20px;
+      padding: clamp(20px, 4vw, 40px) clamp(15px, 3vw, 20px) clamp(50px, 8vw, 100px);
     }
 
     .following-image {
       position: fixed;
-      width: 735px;
-      height: 862px;
+      width: min(735px, 90vw);
+      height: auto;
+      aspect-ratio: 735/862;
       pointer-events: none;
       transform-origin: center center;
       z-index: 1000;
@@ -36,7 +38,7 @@
     }
 
     .following-image.move-right {
-      left: calc(100vw - 200px) !important;
+      left: calc(100vw - min(200px, 25vw)) !important;
     }
 
     @keyframes walk {
@@ -52,18 +54,19 @@
     }
 
     h1 {
-      font-size: 48px;
-      margin-bottom: 40px;
+      font-size: clamp(36px, 6vw, 48px);
+      margin-bottom: clamp(20px, 4vw, 40px);
     }
 
     .nav-button {
       display: block;
-      font-size: 48px;  /* Same as h1 */
-      margin: 20px 0;
+      font-size: clamp(36px, 6vw, 48px);
+      margin: clamp(10px, 2vw, 20px) 0;
       color: #333;
       text-decoration: none;
       transition: color 0.3s;
-      font-weight: 700;  /* Bold like the title */
+      font-weight: 700;
+      line-height: 1.2;
     }
 
     .nav-button:hover {
@@ -73,18 +76,18 @@
     .enemies-list {
       display: none;
       margin: 10px 0;
-      padding-left: 20px;
+      padding-left: clamp(10px, 2vw, 20px);
       list-style: none;
-      font-size: 48px;  /* Match the size */
+      font-size: clamp(36px, 6vw, 48px);
     }
 
     .awards-section {
-      margin-top: 40px;
+      margin-top: clamp(20px, 4vw, 40px);
     }
 
     .awards-title {
-      font-size: 24px;
-      margin-bottom: 20px;
+      font-size: clamp(20px, 3vw, 24px);
+      margin-bottom: clamp(10px, 2vw, 20px);
     }
 
     .awards-list {
@@ -93,7 +96,7 @@
     }
 
     .awards-list li {
-      margin-bottom: 15px;
+      margin-bottom: clamp(8px, 1.5vw, 15px);
       font-style: italic;
     }
 
@@ -112,6 +115,46 @@
 
     ::-webkit-scrollbar-thumb:hover {
       background: #666;
+    }
+
+    /* Mobile-specific styles */
+    @media (max-width: 768px) {
+      body {
+        cursor: auto; /* Show cursor on mobile */
+      }
+
+      .following-image {
+        position: fixed;
+        width: 100vw;
+        height: 100vh;
+        top: 0;
+        left: 0 !important;
+        transform: none;
+        animation: none;
+        object-fit: contain;
+        opacity: 0.8; /* Make image slightly transparent on mobile */
+      }
+
+      .following-image.move-right {
+        left: 0 !important;
+        opacity: 0.3; /* Make image more transparent when buttons are hovered on mobile */
+      }
+
+      .content {
+        position: relative;
+        z-index: 2;
+      }
+    }
+
+    /* Handle very small screens */
+    @media (max-width: 320px) {
+      .content {
+        padding: 15px 10px 30px;
+      }
+
+      .nav-button {
+        margin: 8px 0;
+      }
     }
   </style>
 </head>
@@ -134,7 +177,7 @@
     </div>
 
     <div class="awards-section">
-      <div class="awards-title">awards and festivals [Martyr's Guidebook]</div>
+      <div class="awards-title">My humble list of awards and festivals [For Martyr's Guidebook]</div>
       <ul class="awards-list">
         <li>*Sundance Film Festival 2024 Official Selection*</li>
         <li>*ANNECY International Animation Festival 2024 Official Selection*</li>
@@ -163,16 +206,19 @@
     let mouseX = 0;
     const fixedY = window.innerHeight / 2;
 
-    document.addEventListener('mousemove', (e) => {
-      mouseX = e.clientX;
-    });
+    // Only enable cursor following on non-mobile devices
+    if (window.innerWidth > 768) {
+      document.addEventListener('mousemove', (e) => {
+        mouseX = e.clientX;
+      });
 
-    function updatePosition() {
-      requestAnimationFrame(updatePosition);
-      image.style.left = mouseX + 'px';
+      function updatePosition() {
+        requestAnimationFrame(updatePosition);
+        image.style.left = mouseX + 'px';
+      }
+
+      updatePosition();
     }
-
-    updatePosition();
 
     // Add hover events for nav buttons
     navButtons.forEach(button => {
