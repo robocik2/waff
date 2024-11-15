@@ -22,7 +22,6 @@
       box-shadow: 0 0 20px rgba(0,0,0,0.5);
       cursor: grab;
       overflow: hidden;
-      /* Prevent selection */
       user-select: none;
       -webkit-user-select: none;
       -moz-user-select: none;
@@ -40,16 +39,13 @@
       width: 80%;
       height: 80%;
       border-radius: 50%;
-      animation: spin 4s linear infinite;
-      /* Prevent dragging */
-      pointer-events: none;
       -webkit-user-drag: none;
       user-drag: none;
       -webkit-touch-callout: none;
     }
 
-    .vinyl-img.paused {
-      animation-play-state: paused;
+    .vinyl-img.spinning {
+      animation: spin 4s linear infinite;
     }
 
     .controls {
@@ -79,7 +75,7 @@
 </head>
 <body>
   <div class="turntable">
-    <img src="a man.png" alt="Vinyl" class="vinyl-img" draggable="false">
+    <img src="a man.png" alt="Vinyl" class="vinyl-img spinning" draggable="false">
   </div>
   <div class="controls">
     <button onclick="loadAndPlayTrack('pykpykpyk.mp3')">Load Track</button>
@@ -92,7 +88,6 @@
     let gainNode = null;
     let filterNode = null;
 
-    // Prevent default drag behaviors
     document.addEventListener('dragstart', (e) => {
       e.preventDefault();
     });
@@ -143,6 +138,7 @@
     let currentRotation = 0;
     let velocityX = 0;
     let velocityY = 0;
+    let animationFrameId = null;
 
     function updatePlayback() {
       if (!isDragging || !audioSource) return;
@@ -173,29 +169,40 @@
         0.02
       );
 
-      currentRotation += velocityX;
+      currentRotation += velocityX * 0.2; // Reduced rotation speed for better control
       vinyl.style.transform = `rotate(${currentRotation}deg)`;
 
       velocityX *= 0.95;
       velocityY *= 0.95;
 
-      requestAnimationFrame(updatePlayback);
+      animationFrameId = requestAnimationFrame(updatePlayback);
     }
 
     turntable.addEventListener('mousedown', (e) => {
-      if (!audioSource) {
-        return;
-      }
+      if (!audioSource) return;
       
       isDragging = true;
-      vinyl.classList.add('paused');
+      vinyl.classList.remove('spinning');
       lastX = e.clientX;
       lastY = e.clientY;
       lastMoveTime = performance.now();
       velocityX = 0;
       velocityY = 0;
       
-      requestAnimationFrame(updatePlayback);
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+      }
+      
+      // Get current rotation if any
+      const currentTransform = window.getComputedStyle(vinyl).getPropertyValue('transform');
+      if (currentTransform && currentTransform !== 'none') {
+        const values = currentTransform.split('(')[1].split(')')[0].split(',');
+        const a = values[0];
+        const b = values[1];
+        currentRotation = Math.round(Math.atan2(b, a) * (180/Math.PI));
+      }
+      
+      animationFrameId = requestAnimationFrame(updatePlayback);
     });
 
     document.addEventListener('mousemove', (e) => {
@@ -219,8 +226,12 @@
     document.addEventListener('mouseup', () => {
       if (isDragging) {
         isDragging = false;
-        vinyl.classList.remove('paused');
+        vinyl.classList.add('spinning');
         vinyl.style.transform = '';
+
+        if (animationFrameId) {
+          cancelAnimationFrame(animationFrameId);
+        }
 
         if (audioSource) {
           audioSource.playbackRate.setTargetAtTime(1, audioContext.currentTime, 0.1);
