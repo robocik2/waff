@@ -125,54 +125,156 @@
   </div>
 
   <script>
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    let oscillators = null;
+    let gainNode = null;
+    let filterNode = null;
+
+    function createSynth() {
+      // Create nodes
+      const osc1 = audioContext.createOscillator();
+      const osc2 = audioContext.createOscillator();
+      const osc3 = audioContext.createOscillator();
+      gainNode = audioContext.createGain();
+      filterNode = audioContext.createBiquadFilter();
+      const subGain = audioContext.createGain();
+      
+      // Set oscillator types
+      osc1.type = 'sawtooth';
+      osc2.type = 'square';
+      osc3.type = 'sine';
+      
+      // Connect nodes
+      osc1.connect(gainNode);
+      osc2.connect(subGain);
+      osc3.connect(subGain);
+      subGain.connect(gainNode);
+      gainNode.connect(filterNode);
+      filterNode.connect(audioContext.destination);
+      
+      // Set initial values
+      gainNode.gain.value = 0.15;
+      subGain.gain.value = 0.1;
+      filterNode.type = 'lowpass';
+      filterNode.frequency.value = 1000;
+      filterNode.Q.value = 1;
+      
+      // Start oscillators
+      osc1.start();
+      osc2.start();
+      osc3.start();
+      
+      return [osc1, osc2, osc3];
+    }
+
     const vinyl = document.querySelector('.vinyl');
     const turntable = document.querySelector('.turntable');
     let isDragging = false;
     let lastX = 0;
-    let rotationSpeed = 1;
+    let lastY = 0;
+    let lastMoveTime = 0;
     let currentRotation = 0;
-    
-    // Audio setup
-    const tracks = [
-      '/api/placeholder/audio/track1.mp3',
-      '/api/placeholder/audio/track2.mp3',
-      '/api/placeholder/audio/track3.mp3'
-    ];
-    let currentTrack = new Audio(tracks[0]);
-    currentTrack.loop = true;
+    let currentTrackFreq = 440;
+    let velocityX = 0;
+    let velocityY = 0;
+
+    function updatePitch() {
+      if (!isDragging || !oscillators) return;
+
+      // Calculate velocity magnitude
+      const velocity = Math.sqrt(velocityX * velocityX + velocityY * velocityY);
+      const direction = velocityX > 0 ? 1 : -1;
+      
+      // Map velocity to pitch
+      const pitchBend = velocity * direction * 0.01;
+      const targetPitch = Math.max(0.01, 1 + pitchBend);
+      
+      // Update oscillator frequencies
+      oscillators.forEach((osc, index) => {
+        const detune = index * 5;
+        osc.frequency.setTargetAtTime(
+          (currentTrackFreq + detune) * targetPitch,
+          audioContext.currentTime,
+          0.02
+        );
+      });
+
+      // Update filter based on velocity
+      filterNode.frequency.setTargetAtTime(
+        1000 + (velocity * 100),
+        audioContext.currentTime,
+        0.02
+      );
+
+      // Update gain based on velocity
+      const targetGain = velocity < 0.1 ? 0.01 : 0.15;
+      gainNode.gain.setTargetAtTime(targetGain, audioContext.currentTime, 0.02);
+
+      // Update visual rotation
+      currentRotation += velocityX;
+      vinyl.style.transform = `rotate(${currentRotation}deg)`;
+
+      // Decay velocities
+      velocityX *= 0.95;
+      velocityY *= 0.95;
+
+      requestAnimationFrame(updatePitch);
+    }
 
     function changeTrack(trackNum) {
-      currentTrack.pause();
-      currentTrack = new Audio(tracks[trackNum - 1]);
-      currentTrack.loop = true;
-      if (!vinyl.classList.contains('paused')) {
-        currentTrack.play();
+      switch(trackNum) {
+        case 1:
+          currentTrackFreq = 440;
+          break;
+        case 2:
+          currentTrackFreq = 523.25;
+          break;
+        case 3:
+          currentTrackFreq = 659.25;
+          break;
+      }
+      
+      if (oscillators) {
+        oscillators.forEach((osc, index) => {
+          const detune = index * 5;
+          osc.frequency.setValueAtTime(currentTrackFreq + detune, audioContext.currentTime);
+        });
       }
     }
 
     turntable.addEventListener('mousedown', (e) => {
+      if (!oscillators) {
+        oscillators = createSynth();
+      }
+      
       isDragging = true;
       vinyl.classList.add('paused');
       lastX = e.clientX;
-      currentTrack.pause();
+      lastY = e.clientY;
+      lastMoveTime = performance.now();
+      velocityX = 0;
+      velocityY = 0;
+      
+      requestAnimationFrame(updatePitch);
     });
 
     document.addEventListener('mousemove', (e) => {
       if (isDragging) {
-        const deltaX = e.clientX - lastX;
-        rotationSpeed = deltaX * 0.5;
-        currentRotation += rotationSpeed;
-        vinyl.style.transform = `rotate(${currentRotation}deg)`;
+        const currentTime = performance.now();
+        const deltaTime = (currentTime - lastMoveTime) / 1000; // Convert to seconds
         
-        // Adjust playback rate based on scratch speed
-        if (Math.abs(rotationSpeed) > 0.1) {
-          currentTrack.playbackRate = Math.abs(rotationSpeed) / 10;
-          currentTrack.play();
-        } else {
-          currentTrack.pause();
-        }
+        // Calculate velocities
+        velocityX = (e.clientX - lastX) / deltaTime;
+        velocityY = (e.clientY - lastY) / deltaTime;
+        
+        // Normalize velocities
+        const maxVelocity = 1000;
+        velocityX = Math.max(-maxVelocity, Math.min(maxVelocity, velocityX));
+        velocityY = Math.max(-maxVelocity, Math.min(maxVelocity, velocityY));
         
         lastX = e.clientX;
+        lastY = e.clientY;
+        lastMoveTime = currentTime;
       }
     });
 
@@ -181,13 +283,20 @@
         isDragging = false;
         vinyl.classList.remove('paused');
         vinyl.style.transform = '';
-        currentTrack.playbackRate = 1;
-        currentTrack.play();
+        
+        // Reset audio to normal
+        oscillators.forEach((osc, index) => {
+          const detune = index * 5;
+          osc.frequency.setTargetAtTime(currentTrackFreq + detune, audioContext.currentTime, 0.1);
+        });
+        gainNode.gain.setTargetAtTime(0.15, audioContext.currentTime, 0.1);
+        filterNode.frequency.setTargetAtTime(1000, audioContext.currentTime, 0.1);
       }
     });
 
-    // Start playing when page loads
-    currentTrack.play();
+    document.body.addEventListener('click', () => {
+      if (!oscillators) oscillators = createSynth();
+    }, { once: true });
   </script>
 </body>
 </html>
