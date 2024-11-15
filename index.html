@@ -150,6 +150,34 @@
       isPlaying = !isPlaying;
     }
 
+    function updatePlayback() {
+      if (!isDragging || !audioSource) return;
+
+      const velocity = Math.sqrt(velocityX * velocityX);
+      const baseRate = 1.0;
+      const maxRateChange = 3.0;
+      const velocityScale = 0.005;
+
+      let targetRate = baseRate;
+      if (velocity > 0.1) {
+        targetRate = baseRate + Math.min(velocity * velocityScale, maxRateChange);
+      } else {
+        targetRate = 0.01;
+      }
+
+      audioSource.playbackRate.setTargetAtTime(
+        targetRate,
+        audioContext.currentTime,
+        0.02
+      );
+
+      filterNode.frequency.setTargetAtTime(
+        1000 + (velocity * 100),
+        audioContext.currentTime,
+        0.02
+      );
+    }
+
     function handleDragStart(e) {
       if (!audioSource) return;
 
@@ -164,17 +192,21 @@
         const b = values[1];
         currentRotation = Math.round(Math.atan2(b, a) * (180 / Math.PI));
       }
+
+      updatePlayback();
     }
 
     function handleDragMove(e) {
       if (isDragging) {
         const clientX = e.touches ? e.touches[0].clientX : e.clientX;
 
-        velocityX = clientX - lastX;
-        currentRotation += velocityX * 0.01; // Slow down rotation speed
+        velocityX = (clientX - lastX) * 0.2; // Adjusted for smoother control
+        currentRotation += velocityX;
         vinyl.style.transform = `rotate(${currentRotation}deg)`;
 
         lastX = clientX;
+
+        updatePlayback();
       }
     }
 
