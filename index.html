@@ -8,7 +8,7 @@
       align-items: center;
       justify-content: center;
       min-height: 100vh;
-      background: #FFD700; /* Dark yellow */
+      background: #CC5500; /* Dark orange */
       margin: 0;
       font-family: Arial, sans-serif;
       overflow: hidden; /* Prevent scrolling */
@@ -63,6 +63,11 @@
       transition: background 0.3s ease;
     }
 
+    button.pause {
+      clip-path: none; /* Change shape to a square for pause */
+      border-radius: 5px; /* Optional rounded corners */
+    }
+
     button:hover {
       background: #ff824d; /* Lighter orange */
     }
@@ -78,7 +83,7 @@
     <img src="a man.png" alt="Vinyl" class="vinyl-img" draggable="false">
   </div>
   <div class="controls">
-    <button onclick="loadAndPlayTrack('pykpykpyk.mp3')"></button>
+    <button id="playPauseButton" onclick="togglePlayPause()"></button>
   </div>
 
   <script>
@@ -87,23 +92,18 @@
     let audioSource = null;
     let gainNode = null;
     let filterNode = null;
+    let isPlaying = false;
+    let isDragging = false;
 
-    document.addEventListener('dragstart', (e) => {
-      e.preventDefault();
-    });
+    let lastX = 0;
+    let currentRotation = 0;
+    let velocityX = 0;
 
-    async function loadAndPlayTrack(url) {
+    async function loadTrack(url) {
       try {
         const response = await fetch(url);
         const arrayBuffer = await response.arrayBuffer();
         audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-        
-        if (audioSource) {
-          audioSource.stop();
-        }
-        
-        setupAudio();
-        document.querySelector('.vinyl-img').classList.add('spinning'); // Start spinning when track loads
       } catch (error) {
         console.error('Error loading audio:', error);
       }
@@ -116,7 +116,6 @@
 
       audioSource.buffer = audioBuffer;
       audioSource.loop = true;
-      audioSource.playbackRate.value = 1;
 
       audioSource.connect(gainNode);
       gainNode.connect(filterNode);
@@ -125,74 +124,38 @@
       gainNode.gain.value = 0.7;
       filterNode.type = 'lowpass';
       filterNode.frequency.value = 20000;
-      filterNode.Q.value = 1;
 
       audioSource.start(0);
     }
 
-    const vinyl = document.querySelector('.vinyl-img');
-    const turntable = document.querySelector('.turntable');
-    let isDragging = false;
-    let lastX = 0;
-    let lastY = 0;
-    let lastMoveTime = 0;
-    let currentRotation = 0;
-    let velocityX = 0;
-    let velocityY = 0;
-    let animationFrameId = null;
+    async function togglePlayPause() {
+      const button = document.getElementById("playPauseButton");
 
-    function updatePlayback() {
-      if (!isDragging || !audioSource) return; // Rotate only if track is loaded
-
-      const velocity = Math.sqrt(velocityX * velocityX + velocityY * velocityY);
-      const direction = velocityX > 0 ? 1 : -1;
-
-      const baseRate = 1.0;
-      const maxRateChange = 3.0;
-      const velocityScale = 0.005;
-
-      let targetRate = baseRate;
-      if (velocity > 0.1) {
-        targetRate = baseRate + (direction * Math.min(velocity * velocityScale, maxRateChange));
+      if (!isPlaying) {
+        if (!audioSource) {
+          await loadTrack('pykpykpyk.mp3');
+          setupAudio();
+        }
+        document.querySelector('.vinyl-img').classList.add('spinning');
+        button.classList.remove('pause');
       } else {
-        targetRate = 0.01;
+        document.querySelector('.vinyl-img').classList.remove('spinning');
+        if (audioSource) {
+          audioSource.stop();
+          audioSource = null; // Reset to enable restarting
+        }
+        button.classList.add('pause');
       }
 
-      audioSource.playbackRate.setTargetAtTime(
-        targetRate,
-        audioContext.currentTime,
-        0.02
-      );
-
-      filterNode.frequency.setTargetAtTime(
-        1000 + (velocity * 100),
-        audioContext.currentTime,
-        0.02
-      );
-
-      currentRotation -= velocityX * 0.05; // Reverse rotation direction
-      vinyl.style.transform = `rotate(${currentRotation}deg)`;
-
-      velocityX *= 0.95;
-      velocityY *= 0.95;
-
-      animationFrameId = requestAnimationFrame(updatePlayback);
+      isPlaying = !isPlaying;
     }
 
     function handleDragStart(e) {
       if (!audioSource) return;
-      
-      isDragging = true;
-      vinyl.classList.remove('spinning');
-      lastX = e.touches ? e.touches[0].clientX : e.clientX;
-      lastY = e.touches ? e.touches[0].clientY : e.clientY;
-      lastMoveTime = performance.now();
-      velocityX = 0;
-      velocityY = 0;
 
-      if (animationFrameId) {
-        cancelAnimationFrame(animationFrameId);
-      }
+      isDragging = true;
+      document.querySelector('.vinyl-img').classList.remove('spinning');
+      lastX = e.touches ? e.touches[0].clientX : e.clientX;
 
       const currentTransform = window.getComputedStyle(vinyl).getPropertyValue('transform');
       if (currentTransform && currentTransform !== 'none') {
@@ -201,46 +164,29 @@
         const b = values[1];
         currentRotation = Math.round(Math.atan2(b, a) * (180 / Math.PI));
       }
-
-      animationFrameId = requestAnimationFrame(updatePlayback);
     }
 
     function handleDragMove(e) {
       if (isDragging) {
-        const currentTime = performance.now();
-        const deltaTime = (currentTime - lastMoveTime) / 1000;
-
         const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
 
-        velocityX = (clientX - lastX) / deltaTime;
-        velocityY = (clientY - lastY) / deltaTime;
-
-        const maxVelocity = 1000;
-        velocityX = Math.max(-maxVelocity, Math.min(maxVelocity, velocityX));
-        velocityY = Math.max(-maxVelocity, Math.min(maxVelocity, velocityY));
+        velocityX = clientX - lastX;
+        currentRotation += velocityX * 0.01; // Slow down rotation speed
+        vinyl.style.transform = `rotate(${currentRotation}deg)`;
 
         lastX = clientX;
-        lastY = clientY;
-        lastMoveTime = currentTime;
       }
     }
 
     function handleDragEnd() {
-      if (isDragging) {
-        isDragging = false;
-        if (audioSource) {
-          vinyl.classList.add('spinning');
-          vinyl.style.transform = '';
-          audioSource.playbackRate.setTargetAtTime(1, audioContext.currentTime, 0.1);
-          filterNode.frequency.setTargetAtTime(20000, audioContext.currentTime, 0.1);
-        }
-
-        if (animationFrameId) {
-          cancelAnimationFrame(animationFrameId);
-        }
+      isDragging = false;
+      if (isPlaying) {
+        document.querySelector('.vinyl-img').classList.add('spinning');
       }
     }
+
+    const vinyl = document.querySelector('.vinyl-img');
+    const turntable = document.querySelector('.turntable');
 
     turntable.addEventListener('mousedown', handleDragStart);
     turntable.addEventListener('touchstart', handleDragStart);
