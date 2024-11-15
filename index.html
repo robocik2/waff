@@ -119,52 +119,56 @@
     </div>
   </div>
   <div class="controls">
-    <button onclick="changeTrack(1)">Track 1</button>
-    <button onclick="changeTrack(2)">Track 2</button>
-    <button onclick="changeTrack(3)">Track 3</button>
+    <button onclick="loadAndPlayTrack('pykpykpyk.mp3')">Load Track</button>
   </div>
 
   <script>
     const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    let oscillators = null;
+    let audioBuffer = null;
+    let audioSource = null;
     let gainNode = null;
     let filterNode = null;
 
-    function createSynth() {
-      // Create nodes
-      const osc1 = audioContext.createOscillator();
-      const osc2 = audioContext.createOscillator();
-      const osc3 = audioContext.createOscillator();
+    async function loadAndPlayTrack(url) {
+      try {
+        const response = await fetch(url);
+        const arrayBuffer = await response.arrayBuffer();
+        audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+        
+        if (audioSource) {
+          audioSource.stop();
+        }
+        
+        setupAudio();
+      } catch (error) {
+        console.error('Error loading audio:', error);
+      }
+    }
+
+    function setupAudio() {
+      // Create audio nodes
+      audioSource = audioContext.createBufferSource();
       gainNode = audioContext.createGain();
       filterNode = audioContext.createBiquadFilter();
-      const subGain = audioContext.createGain();
-      
-      // Set oscillator types
-      osc1.type = 'sawtooth';
-      osc2.type = 'square';
-      osc3.type = 'sine';
-      
+
+      // Set up audio source
+      audioSource.buffer = audioBuffer;
+      audioSource.loop = true;
+      audioSource.playbackRate.value = 1;
+
       // Connect nodes
-      osc1.connect(gainNode);
-      osc2.connect(subGain);
-      osc3.connect(subGain);
-      subGain.connect(gainNode);
+      audioSource.connect(gainNode);
       gainNode.connect(filterNode);
       filterNode.connect(audioContext.destination);
-      
+
       // Set initial values
-      gainNode.gain.value = 0.15;
-      subGain.gain.value = 0.1;
+      gainNode.gain.value = 0.7;
       filterNode.type = 'lowpass';
-      filterNode.frequency.value = 1000;
+      filterNode.frequency.value = 20000;
       filterNode.Q.value = 1;
-      
-      // Start oscillators
-      osc1.start();
-      osc2.start();
-      osc3.start();
-      
-      return [osc1, osc2, osc3];
+
+      // Start playback
+      audioSource.start(0);
     }
 
     const vinyl = document.querySelector('.vinyl');
@@ -174,30 +178,34 @@
     let lastY = 0;
     let lastMoveTime = 0;
     let currentRotation = 0;
-    let currentTrackFreq = 440;
     let velocityX = 0;
     let velocityY = 0;
 
-    function updatePitch() {
-      if (!isDragging || !oscillators) return;
+    function updatePlayback() {
+      if (!isDragging || !audioSource) return;
 
       // Calculate velocity magnitude
       const velocity = Math.sqrt(velocityX * velocityX + velocityY * velocityY);
       const direction = velocityX > 0 ? 1 : -1;
       
-      // Map velocity to pitch
-      const pitchBend = velocity * direction * 0.01;
-      const targetPitch = Math.max(0.01, 1 + pitchBend);
+      // Map velocity to playback rate
+      const baseRate = 1.0;
+      const maxRateChange = 3.0;
+      const velocityScale = 0.005;
       
-      // Update oscillator frequencies
-      oscillators.forEach((osc, index) => {
-        const detune = index * 5;
-        osc.frequency.setTargetAtTime(
-          (currentTrackFreq + detune) * targetPitch,
-          audioContext.currentTime,
-          0.02
-        );
-      });
+      let targetRate = baseRate;
+      if (velocity > 0.1) {
+        targetRate = baseRate + (direction * Math.min(velocity * velocityScale, maxRateChange));
+      } else {
+        targetRate = 0.01; // Very slow when not moving
+      }
+
+      // Update playback rate
+      audioSource.playbackRate.setTargetAtTime(
+        targetRate,
+        audioContext.currentTime,
+        0.02
+      );
 
       // Update filter based on velocity
       filterNode.frequency.setTargetAtTime(
@@ -205,10 +213,6 @@
         audioContext.currentTime,
         0.02
       );
-
-      // Update gain based on velocity
-      const targetGain = velocity < 0.1 ? 0.01 : 0.15;
-      gainNode.gain.setTargetAtTime(targetGain, audioContext.currentTime, 0.02);
 
       // Update visual rotation
       currentRotation += velocityX;
@@ -218,33 +222,12 @@
       velocityX *= 0.95;
       velocityY *= 0.95;
 
-      requestAnimationFrame(updatePitch);
-    }
-
-    function changeTrack(trackNum) {
-      switch(trackNum) {
-        case 1:
-          currentTrackFreq = 440;
-          break;
-        case 2:
-          currentTrackFreq = 523.25;
-          break;
-        case 3:
-          currentTrackFreq = 659.25;
-          break;
-      }
-      
-      if (oscillators) {
-        oscillators.forEach((osc, index) => {
-          const detune = index * 5;
-          osc.frequency.setValueAtTime(currentTrackFreq + detune, audioContext.currentTime);
-        });
-      }
+      requestAnimationFrame(updatePlayback);
     }
 
     turntable.addEventListener('mousedown', (e) => {
-      if (!oscillators) {
-        oscillators = createSynth();
+      if (!audioSource) {
+        return;
       }
       
       isDragging = true;
@@ -255,13 +238,13 @@
       velocityX = 0;
       velocityY = 0;
       
-      requestAnimationFrame(updatePitch);
+      requestAnimationFrame(updatePlayback);
     });
 
     document.addEventListener('mousemove', (e) => {
       if (isDragging) {
         const currentTime = performance.now();
-        const deltaTime = (currentTime - lastMoveTime) / 1000; // Convert to seconds
+        const deltaTime = (currentTime - lastMoveTime) / 1000;
         
         // Calculate velocities
         velocityX = (e.clientX - lastX) / deltaTime;
@@ -284,19 +267,13 @@
         vinyl.classList.remove('paused');
         vinyl.style.transform = '';
         
-        // Reset audio to normal
-        oscillators.forEach((osc, index) => {
-          const detune = index * 5;
-          osc.frequency.setTargetAtTime(currentTrackFreq + detune, audioContext.currentTime, 0.1);
-        });
-        gainNode.gain.setTargetAtTime(0.15, audioContext.currentTime, 0.1);
-        filterNode.frequency.setTargetAtTime(1000, audioContext.currentTime, 0.1);
+        if (audioSource) {
+          // Reset audio to normal
+          audioSource.playbackRate.setTargetAtTime(1, audioContext.currentTime, 0.1);
+          filterNode.frequency.setTargetAtTime(20000, audioContext.currentTime, 0.1);
+        }
       }
     });
-
-    document.body.addEventListener('click', () => {
-      if (!oscillators) oscillators = createSynth();
-    }, { once: true });
   </script>
 </body>
 </html>
