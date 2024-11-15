@@ -21,7 +21,12 @@
       border-radius: 50%;
       box-shadow: 0 0 20px rgba(0,0,0,0.5);
       cursor: grab;
-      overflow: hidden; /* Ensure the image stays within the turntable */
+      overflow: hidden;
+      /* Prevent selection */
+      user-select: none;
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
     }
 
     .turntable:active {
@@ -36,6 +41,11 @@
       height: 80%;
       border-radius: 50%;
       animation: spin 4s linear infinite;
+      /* Prevent dragging */
+      pointer-events: none;
+      -webkit-user-drag: none;
+      user-drag: none;
+      -webkit-touch-callout: none;
     }
 
     .vinyl-img.paused {
@@ -82,6 +92,11 @@
     let gainNode = null;
     let filterNode = null;
 
+    // Prevent default drag behaviors
+    document.addEventListener('dragstart', (e) => {
+      e.preventDefault();
+    });
+
     async function loadAndPlayTrack(url) {
       try {
         const response = await fetch(url);
@@ -121,9 +136,98 @@
 
     const vinyl = document.querySelector('.vinyl-img');
     const turntable = document.querySelector('.turntable');
+    let isDragging = false;
+    let lastX = 0;
+    let lastY = 0;
+    let lastMoveTime = 0;
+    let currentRotation = 0;
+    let velocityX = 0;
+    let velocityY = 0;
 
-    // Prevent drag events on the image
-    vinyl.addEventListener('dragstart', (e) => e.preventDefault());
+    function updatePlayback() {
+      if (!isDragging || !audioSource) return;
+
+      const velocity = Math.sqrt(velocityX * velocityX + velocityY * velocityY);
+      const direction = velocityX > 0 ? 1 : -1;
+
+      const baseRate = 1.0;
+      const maxRateChange = 3.0;
+      const velocityScale = 0.005;
+
+      let targetRate = baseRate;
+      if (velocity > 0.1) {
+        targetRate = baseRate + (direction * Math.min(velocity * velocityScale, maxRateChange));
+      } else {
+        targetRate = 0.01;
+      }
+
+      audioSource.playbackRate.setTargetAtTime(
+        targetRate,
+        audioContext.currentTime,
+        0.02
+      );
+
+      filterNode.frequency.setTargetAtTime(
+        1000 + (velocity * 100),
+        audioContext.currentTime,
+        0.02
+      );
+
+      currentRotation += velocityX;
+      vinyl.style.transform = `rotate(${currentRotation}deg)`;
+
+      velocityX *= 0.95;
+      velocityY *= 0.95;
+
+      requestAnimationFrame(updatePlayback);
+    }
+
+    turntable.addEventListener('mousedown', (e) => {
+      if (!audioSource) {
+        return;
+      }
+      
+      isDragging = true;
+      vinyl.classList.add('paused');
+      lastX = e.clientX;
+      lastY = e.clientY;
+      lastMoveTime = performance.now();
+      velocityX = 0;
+      velocityY = 0;
+      
+      requestAnimationFrame(updatePlayback);
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (isDragging) {
+        const currentTime = performance.now();
+        const deltaTime = (currentTime - lastMoveTime) / 1000;
+
+        velocityX = (e.clientX - lastX) / deltaTime;
+        velocityY = (e.clientY - lastY) / deltaTime;
+
+        const maxVelocity = 1000;
+        velocityX = Math.max(-maxVelocity, Math.min(maxVelocity, velocityX));
+        velocityY = Math.max(-maxVelocity, Math.min(maxVelocity, velocityY));
+
+        lastX = e.clientX;
+        lastY = e.clientY;
+        lastMoveTime = currentTime;
+      }
+    });
+
+    document.addEventListener('mouseup', () => {
+      if (isDragging) {
+        isDragging = false;
+        vinyl.classList.remove('paused');
+        vinyl.style.transform = '';
+
+        if (audioSource) {
+          audioSource.playbackRate.setTargetAtTime(1, audioContext.currentTime, 0.1);
+          filterNode.frequency.setTargetAtTime(20000, audioContext.currentTime, 0.1);
+        }
+      }
+    });
   </script>
 </body>
 </html>
