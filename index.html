@@ -1,244 +1,193 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&display=swap" rel="stylesheet">
   <style>
     body {
-      margin: 0;
-      padding: 0;
-      background: #f5f5f5;
-      font-family: 'Times New Roman', serif;
-      cursor: none;
-      color: #333;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
       min-height: 100vh;
+      background: #2c3e50;
+      margin: 0;
+      font-family: Arial, sans-serif;
     }
 
-    .content {
-      max-width: 800px;
-      margin: 0 auto;
-      line-height: 1.8;
-      font-size: clamp(16px, 2vw, 18px);
+    .turntable {
       position: relative;
-      z-index: 1;
-      padding: clamp(20px, 4vw, 40px) clamp(15px, 3vw, 20px) clamp(50px, 8vw, 100px);
+      width: 300px;
+      height: 300px;
+      background: #34495e;
+      border-radius: 50%;
+      box-shadow: 0 0 20px rgba(0,0,0,0.5);
+      cursor: grab;
     }
 
-    .following-image {
-      position: fixed;
-      width: min(735px, 90vw);
-      height: auto;
-      aspect-ratio: 735/862;
-      pointer-events: none;
-      transform-origin: center center;
-      z-index: 1000;
+    .turntable:active {
+      cursor: grabbing;
+    }
+
+    .vinyl {
+      position: absolute;
+      top: 10%;
+      left: 10%;
+      width: 80%;
+      height: 80%;
+      background: #2c3e50;
+      border-radius: 50%;
+      animation: spin 4s linear infinite;
+    }
+
+    .vinyl::after {
+      content: '';
+      position: absolute;
       top: 50%;
-      animation: walk 0.5s infinite alternate ease-in-out;
-      transition: left 0.8s cubic-bezier(0.2, 0.8, 0.2, 1);
+      left: 50%;
+      width: 10%;
+      height: 10%;
+      background: #95a5a6;
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
     }
 
-    .following-image.move-right {
-      left: calc(100vw - min(200px, 25vw)) !important;
+    .grooves {
+      position: absolute;
+      top: 15%;
+      left: 15%;
+      width: 70%;
+      height: 70%;
+      border-radius: 50%;
+      border: 1px solid #95a5a6;
+      pointer-events: none;
     }
 
-    @keyframes walk {
-      0% {
-        transform: translate(-50%, -50%) rotate(-2deg) translateY(-20px);
-      }
-      50% {
-        transform: translate(-50%, -50%) rotate(0deg) translateY(0px);
-      }
-      100% {
-        transform: translate(-50%, -50%) rotate(2deg) translateY(-20px);
-      }
+    .grooves::before {
+      content: '';
+      position: absolute;
+      top: 10%;
+      left: 10%;
+      width: 80%;
+      height: 80%;
+      border-radius: 50%;
+      border: 1px solid #95a5a6;
     }
 
-    h1 {
-      font-size: clamp(36px, 6vw, 48px);
-      margin-bottom: clamp(20px, 4vw, 40px);
+    .grooves::after {
+      content: '';
+      position: absolute;
+      top: 20%;
+      left: 20%;
+      width: 60%;
+      height: 60%;
+      border-radius: 50%;
+      border: 1px solid #95a5a6;
     }
 
-    .nav-button {
-      display: block;
-      font-size: clamp(36px, 6vw, 48px);
-      margin: clamp(10px, 2vw, 20px) 0;
-      color: #333;
-      text-decoration: none;
-      transition: color 0.3s;
-      font-weight: 700;
-      line-height: 1.2;
+    .controls {
+      margin-top: 20px;
+      display: flex;
+      gap: 10px;
     }
 
-    .nav-button:hover {
-      color: #666;
+    button {
+      padding: 10px 20px;
+      background: #3498db;
+      border: none;
+      border-radius: 5px;
+      color: white;
+      cursor: pointer;
     }
 
-    .enemies-list {
-      display: none;
-      margin: 10px 0;
-      padding-left: clamp(10px, 2vw, 20px);
-      list-style: none;
-      font-size: clamp(36px, 6vw, 48px);
+    button:hover {
+      background: #2980b9;
     }
 
-    .awards-section {
-      margin-top: clamp(20px, 4vw, 40px);
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
     }
 
-    .awards-title {
-      font-size: clamp(20px, 3vw, 24px);
-      margin-bottom: clamp(10px, 2vw, 20px);
-    }
-
-    .awards-list {
-      list-style: none;
-      padding: 0;
-    }
-
-    .awards-list li {
-      margin-bottom: clamp(8px, 1.5vw, 15px);
-      font-style: italic;
-    }
-
-    ::-webkit-scrollbar {
-      width: 8px;
-    }
-
-    ::-webkit-scrollbar-track {
-      background: #f5f5f5;
-    }
-
-    ::-webkit-scrollbar-thumb {
-      background: #888;
-      border-radius: 4px;
-    }
-
-    ::-webkit-scrollbar-thumb:hover {
-      background: #666;
-    }
-
-    /* Mobile-specific styles */
-    @media (max-width: 768px) {
-      body {
-        cursor: auto; /* Show cursor on mobile */
-      }
-
-      .following-image {
-        position: fixed;
-        width: 100vw;
-        height: 100vh;
-        top: 0;
-        left: 0 !important;
-        transform: none;
-        animation: none;
-        object-fit: contain;
-        opacity: 0.8; /* Make image slightly transparent on mobile */
-      }
-
-      .following-image.move-right {
-        left: 0 !important;
-        opacity: 0.3; /* Make image more transparent when buttons are hovered on mobile */
-      }
-
-      .content {
-        position: relative;
-        z-index: 2;
-      }
-    }
-
-    /* Handle very small screens */
-    @media (max-width: 320px) {
-      .content {
-        padding: 15px 10px 30px;
-      }
-
-      .nav-button {
-        margin: 8px 0;
-      }
+    .paused {
+      animation-play-state: paused;
     }
   </style>
 </head>
 <body>
-  <img src="a man.png" alt="A man" class="following-image">
-  
-  <div class="content">
-    <h1>maks rz</h1>
-    
-    <a href="https://vimeo.com/maksrz" class="nav-button" target="_blank">video</a>
-    <a href="https://instagram.com/robocik.2" class="nav-button" target="_blank">art</a>
-    <a href="https://instagram.com/robocik.2" class="nav-button" target="_blank">ig</a>
-    <a href="mailto:maksrzontkowski@gmail.com" class="nav-button">contact</a>
-    
-    <div>
-      <a href="#" class="nav-button" id="enemies-button">list of my enemies</a>
-      <ul class="enemies-list" id="enemies-list">
-        <li>1. damien</li>
-      </ul>
+  <div class="turntable">
+    <div class="vinyl">
+      <div class="grooves"></div>
     </div>
-
-    <div class="awards-section">
-      <div class="awards-title">awards and festivals [Martyr's Guidebook]</div>
-      <ul class="awards-list">
-        <li>*Sundance Film Festival 2024 Official Selection*</li>
-        <li>*ANNECY International Animation Festival 2024 Official Selection*</li>
-        <li>*OTTAWA Animation Festival Best Student Animation Prize*</li>
-        <li>*SPEKTRUM 2024 GRAND PRIZE*</li>
-        <li>*New Horizons Festival 2024 Official Selection*</li>
-        <li>*PICTOPLASMA 2024 Official Selection*</li>
-        <li>*FEST New Directors 2024 Official Selection*</li>
-        <li>*Rooftop Films 2024 Official Selection*</li>
-        <li>*Animator Festival 2024: II PRIZE*</li>
-        <li>*SFP Best Animated Films 2023, Best Student Film*</li>
-        <li>*Kaboom Animation Festival 2024: Special Mention*</li>
-        <li>*ŻUBROFFKA 2024: II Prize*</li>
-        <li>*Salute Your Shorts Festival 2024 Official Selection*</li>
-        <li>*Fest Anca 2024 Official Selection*</li>
-        <li>*HELSINKI INTERNATIONAL FILM FESTIVAL*</li>
-        <li>*TOHORROR 2024 GRAND PRIZE*</li>
-      </ul>
-      <p>& more.</p>
-    </div>
+  </div>
+  <div class="controls">
+    <button onclick="changeTrack(1)">Track 1</button>
+    <button onclick="changeTrack(2)">Track 2</button>
+    <button onclick="changeTrack(3)">Track 3</button>
   </div>
 
   <script>
-    const image = document.querySelector('.following-image');
-    const navButtons = document.querySelectorAll('.nav-button');
-    let mouseX = 0;
-    const fixedY = window.innerHeight / 2;
+    const vinyl = document.querySelector('.vinyl');
+    const turntable = document.querySelector('.turntable');
+    let isDragging = false;
+    let lastX = 0;
+    let rotationSpeed = 1;
+    let currentRotation = 0;
+    
+    // Audio setup
+    const tracks = [
+      '/api/placeholder/audio/track1.mp3',
+      '/api/placeholder/audio/track2.mp3',
+      '/api/placeholder/audio/track3.mp3'
+    ];
+    let currentTrack = new Audio(tracks[0]);
+    currentTrack.loop = true;
 
-    // Only enable cursor following on non-mobile devices
-    if (window.innerWidth > 768) {
-      document.addEventListener('mousemove', (e) => {
-        mouseX = e.clientX;
-      });
-
-      function updatePosition() {
-        requestAnimationFrame(updatePosition);
-        image.style.left = mouseX + 'px';
+    function changeTrack(trackNum) {
+      currentTrack.pause();
+      currentTrack = new Audio(tracks[trackNum - 1]);
+      currentTrack.loop = true;
+      if (!vinyl.classList.contains('paused')) {
+        currentTrack.play();
       }
-
-      updatePosition();
     }
 
-    // Add hover events for nav buttons
-    navButtons.forEach(button => {
-      button.addEventListener('mouseenter', () => {
-        image.classList.add('move-right');
-      });
-      
-      button.addEventListener('mouseleave', () => {
-        image.classList.remove('move-right');
-      });
+    turntable.addEventListener('mousedown', (e) => {
+      isDragging = true;
+      vinyl.classList.add('paused');
+      lastX = e.clientX;
+      currentTrack.pause();
     });
 
-    // Enemies list toggle
-    const enemiesButton = document.getElementById('enemies-button');
-    const enemiesList = document.getElementById('enemies-list');
-    
-    enemiesButton.addEventListener('click', (e) => {
-      e.preventDefault();
-      enemiesList.style.display = enemiesList.style.display === 'block' ? 'none' : 'block';
+    document.addEventListener('mousemove', (e) => {
+      if (isDragging) {
+        const deltaX = e.clientX - lastX;
+        rotationSpeed = deltaX * 0.5;
+        currentRotation += rotationSpeed;
+        vinyl.style.transform = `rotate(${currentRotation}deg)`;
+        
+        // Adjust playback rate based on scratch speed
+        if (Math.abs(rotationSpeed) > 0.1) {
+          currentTrack.playbackRate = Math.abs(rotationSpeed) / 10;
+          currentTrack.play();
+        } else {
+          currentTrack.pause();
+        }
+        
+        lastX = e.clientX;
+      }
     });
+
+    document.addEventListener('mouseup', () => {
+      if (isDragging) {
+        isDragging = false;
+        vinyl.classList.remove('paused');
+        vinyl.style.transform = '';
+        currentTrack.playbackRate = 1;
+        currentTrack.play();
+      }
+    });
+
+    // Start playing when page loads
+    currentTrack.play();
   </script>
 </body>
 </html>
