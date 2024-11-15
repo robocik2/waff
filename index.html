@@ -15,13 +15,10 @@
 
     .turntable {
       position: relative;
-      width: 300px;
-      height: 300px;
-      background: #34495e;
-      border-radius: 50%;
-      box-shadow: 0 0 20px rgba(0,0,0,0.5);
+      width: auto;
+      height: auto;
       cursor: grab;
-      overflow: hidden;
+      overflow: visible;
       user-select: none;
       -webkit-user-select: none;
       -moz-user-select: none;
@@ -33,19 +30,16 @@
     }
 
     .vinyl-img {
-      position: absolute;
-      top: 10%;
-      left: 10%;
-      width: 80%;
-      height: 80%;
-      border-radius: 50%;
+      position: relative;
+      width: auto;
+      height: auto;
       -webkit-user-drag: none;
       user-drag: none;
       -webkit-touch-callout: none;
     }
 
     .vinyl-img.spinning {
-      animation: spin 4s linear infinite;
+      animation: spin 8s linear infinite; /* Slower default rotation (changed from 4s to 8s) */
     }
 
     .controls {
@@ -56,15 +50,16 @@
 
     button {
       padding: 10px 20px;
-      background: #3498db;
+      background: #ff6b35; /* Changed to orange */
       border: none;
       border-radius: 5px;
       color: white;
       cursor: pointer;
+      transition: background 0.3s ease;
     }
 
     button:hover {
-      background: #2980b9;
+      background: #ff824d; /* Lighter orange */
     }
 
     @keyframes spin {
@@ -169,7 +164,7 @@
         0.02
       );
 
-      currentRotation += velocityX * 0.2; // Reduced rotation speed for better control
+      currentRotation += velocityX * 0.05; // Reduced rotation sensitivity (changed from 0.2 to 0.05)
       vinyl.style.transform = `rotate(${currentRotation}deg)`;
 
       velocityX *= 0.95;
@@ -193,7 +188,6 @@
         cancelAnimationFrame(animationFrameId);
       }
       
-      // Get current rotation if any
       const currentTransform = window.getComputedStyle(vinyl).getPropertyValue('transform');
       if (currentTransform && currentTransform !== 'none') {
         const values = currentTransform.split('(')[1].split(')')[0].split(',');
