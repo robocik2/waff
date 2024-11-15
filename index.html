@@ -21,66 +21,25 @@
       border-radius: 50%;
       box-shadow: 0 0 20px rgba(0,0,0,0.5);
       cursor: grab;
+      overflow: hidden; /* Ensure the image stays within the turntable */
     }
 
     .turntable:active {
       cursor: grabbing;
     }
 
-    .vinyl {
+    .vinyl-img {
       position: absolute;
       top: 10%;
       left: 10%;
       width: 80%;
       height: 80%;
-      background: #2c3e50;
       border-radius: 50%;
       animation: spin 4s linear infinite;
     }
 
-    .vinyl::after {
-      content: '';
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      width: 10%;
-      height: 10%;
-      background: #95a5a6;
-      border-radius: 50%;
-      transform: translate(-50%, -50%);
-    }
-
-    .grooves {
-      position: absolute;
-      top: 15%;
-      left: 15%;
-      width: 70%;
-      height: 70%;
-      border-radius: 50%;
-      border: 1px solid #95a5a6;
-      pointer-events: none;
-    }
-
-    .grooves::before {
-      content: '';
-      position: absolute;
-      top: 10%;
-      left: 10%;
-      width: 80%;
-      height: 80%;
-      border-radius: 50%;
-      border: 1px solid #95a5a6;
-    }
-
-    .grooves::after {
-      content: '';
-      position: absolute;
-      top: 20%;
-      left: 20%;
-      width: 60%;
-      height: 60%;
-      border-radius: 50%;
-      border: 1px solid #95a5a6;
+    .vinyl-img.paused {
+      animation-play-state: paused;
     }
 
     .controls {
@@ -106,17 +65,11 @@
       from { transform: rotate(0deg); }
       to { transform: rotate(360deg); }
     }
-
-    .paused {
-      animation-play-state: paused;
-    }
   </style>
 </head>
 <body>
   <div class="turntable">
-    <div class="vinyl">
-      <div class="grooves"></div>
-    </div>
+    <img src="a man.png" alt="Vinyl" class="vinyl-img">
   </div>
   <div class="controls">
     <button onclick="loadAndPlayTrack('pykpykpyk.mp3')">Load Track</button>
@@ -146,32 +99,27 @@
     }
 
     function setupAudio() {
-      // Create audio nodes
       audioSource = audioContext.createBufferSource();
       gainNode = audioContext.createGain();
       filterNode = audioContext.createBiquadFilter();
 
-      // Set up audio source
       audioSource.buffer = audioBuffer;
       audioSource.loop = true;
       audioSource.playbackRate.value = 1;
 
-      // Connect nodes
       audioSource.connect(gainNode);
       gainNode.connect(filterNode);
       filterNode.connect(audioContext.destination);
 
-      // Set initial values
       gainNode.gain.value = 0.7;
       filterNode.type = 'lowpass';
       filterNode.frequency.value = 20000;
       filterNode.Q.value = 1;
 
-      // Start playback
       audioSource.start(0);
     }
 
-    const vinyl = document.querySelector('.vinyl');
+    const vinyl = document.querySelector('.vinyl-img');
     const turntable = document.querySelector('.turntable');
     let isDragging = false;
     let lastX = 0;
@@ -184,41 +132,35 @@
     function updatePlayback() {
       if (!isDragging || !audioSource) return;
 
-      // Calculate velocity magnitude
       const velocity = Math.sqrt(velocityX * velocityX + velocityY * velocityY);
       const direction = velocityX > 0 ? 1 : -1;
-      
-      // Map velocity to playback rate
+
       const baseRate = 1.0;
       const maxRateChange = 3.0;
       const velocityScale = 0.005;
-      
+
       let targetRate = baseRate;
       if (velocity > 0.1) {
         targetRate = baseRate + (direction * Math.min(velocity * velocityScale, maxRateChange));
       } else {
-        targetRate = 0.01; // Very slow when not moving
+        targetRate = 0.01;
       }
 
-      // Update playback rate
       audioSource.playbackRate.setTargetAtTime(
         targetRate,
         audioContext.currentTime,
         0.02
       );
 
-      // Update filter based on velocity
       filterNode.frequency.setTargetAtTime(
         1000 + (velocity * 100),
         audioContext.currentTime,
         0.02
       );
 
-      // Update visual rotation
       currentRotation += velocityX;
       vinyl.style.transform = `rotate(${currentRotation}deg)`;
 
-      // Decay velocities
       velocityX *= 0.95;
       velocityY *= 0.95;
 
@@ -245,16 +187,14 @@
       if (isDragging) {
         const currentTime = performance.now();
         const deltaTime = (currentTime - lastMoveTime) / 1000;
-        
-        // Calculate velocities
+
         velocityX = (e.clientX - lastX) / deltaTime;
         velocityY = (e.clientY - lastY) / deltaTime;
-        
-        // Normalize velocities
+
         const maxVelocity = 1000;
         velocityX = Math.max(-maxVelocity, Math.min(maxVelocity, velocityX));
         velocityY = Math.max(-maxVelocity, Math.min(maxVelocity, velocityY));
-        
+
         lastX = e.clientX;
         lastY = e.clientY;
         lastMoveTime = currentTime;
@@ -266,9 +206,8 @@
         isDragging = false;
         vinyl.classList.remove('paused');
         vinyl.style.transform = '';
-        
+
         if (audioSource) {
-          // Reset audio to normal
           audioSource.playbackRate.setTargetAtTime(1, audioContext.currentTime, 0.1);
           filterNode.frequency.setTargetAtTime(20000, audioContext.currentTime, 0.1);
         }
