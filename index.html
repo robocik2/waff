@@ -140,7 +140,7 @@
     let animationFrameId = null;
 
     function updatePlayback() {
-  if (!isDragging || !audioSource) return;
+  if (!isDragging || !audioSource) return; // Check if the track is loaded
 
   const velocity = Math.sqrt(velocityX * velocityX + velocityY * velocityY);
   const direction = velocityX > 0 ? 1 : -1;
@@ -168,9 +168,11 @@
     0.02
   );
 
-  // Reverse the direction of rotation by negating velocityX
-  currentRotation -= velocityX * 0.05; // Subtract instead of adding
-  vinyl.style.transform = `rotate(${currentRotation}deg)`;
+  // Only update rotation if the track is loaded
+  if (audioSource) {
+    currentRotation -= velocityX * 0.05; // Subtract to reverse direction
+    vinyl.style.transform = `rotate(${currentRotation}deg)`;
+  }
 
   velocityX *= 0.95;
   velocityY *= 0.95;
