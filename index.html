@@ -21,7 +21,7 @@
       border-radius: 50%;
       box-shadow: 0 0 20px rgba(0,0,0,0.5);
       cursor: grab;
-      overflow: hidden;
+      overflow: hidden; /* Ensure the image stays within the turntable */
     }
 
     .turntable:active {
@@ -121,47 +121,6 @@
 
     const vinyl = document.querySelector('.vinyl-img');
     const turntable = document.querySelector('.turntable');
-    let isDragging = false;
-    let lastX = 0;
-    let lastY = 0;
-    let currentRotation = 0;
-    let velocityX = 0;
-
-    function updateRotation() {
-      if (!isDragging) return;
-
-      currentRotation += velocityX * 0.1; // Adjust the scaling factor for realistic rotation
-      vinyl.style.transform = `rotate(${currentRotation}deg)`;
-
-      velocityX *= 0.95; // Decay the velocity slightly for smooth stopping
-
-      requestAnimationFrame(updateRotation);
-    }
-
-    turntable.addEventListener('mousedown', (e) => {
-      e.preventDefault(); // Prevent default drag behavior
-      isDragging = true;
-      vinyl.classList.add('paused');
-      lastX = e.clientX;
-      velocityX = 0;
-
-      requestAnimationFrame(updateRotation);
-    });
-
-    document.addEventListener('mousemove', (e) => {
-      if (isDragging) {
-        const deltaX = e.clientX - lastX;
-        velocityX = deltaX; // Update velocity based on cursor movement
-        lastX = e.clientX;
-      }
-    });
-
-    document.addEventListener('mouseup', () => {
-      if (isDragging) {
-        isDragging = false;
-        vinyl.classList.remove('paused');
-      }
-    });
 
     // Prevent drag events on the image
     vinyl.addEventListener('dragstart', (e) => e.preventDefault());
