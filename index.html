@@ -8,15 +8,16 @@
       align-items: center;
       justify-content: center;
       min-height: 100vh;
-      background: #2c3e50;
+      background: #FFD700; /* Dark yellow */
       margin: 0;
       font-family: Arial, sans-serif;
     }
 
     .turntable {
       position: relative;
-      width: auto;
-      height: auto;
+      width: 60%; /* Set a responsive width */
+      max-width: 300px; /* Ensure it doesn't grow too large */
+      aspect-ratio: 1; /* Maintain square shape */
       cursor: grab;
       overflow: visible;
       user-select: none;
@@ -30,9 +31,12 @@
     }
 
     .vinyl-img {
-      position: relative;
-      width: auto;
-      height: auto;
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%; /* Fill the parent container */
+      height: 100%; /* Maintain aspect ratio */
+      object-fit: contain; /* Ensure the image scales properly */
       -webkit-user-drag: none;
       user-drag: none;
       -webkit-touch-callout: none;
@@ -50,7 +54,7 @@
 
     button {
       padding: 10px 20px;
-      background: #ff6b35; /* Changed to orange */
+      background: #ff6b35; /* Orange */
       border: none;
       border-radius: 5px;
       color: white;
