@@ -140,42 +140,43 @@
     let animationFrameId = null;
 
     function updatePlayback() {
-      if (!isDragging || !audioSource) return;
+  if (!isDragging || !audioSource) return;
 
-      const velocity = Math.sqrt(velocityX * velocityX + velocityY * velocityY);
-      const direction = velocityX > 0 ? 1 : -1;
+  const velocity = Math.sqrt(velocityX * velocityX + velocityY * velocityY);
+  const direction = velocityX > 0 ? 1 : -1;
 
-      const baseRate = 1.0;
-      const maxRateChange = 3.0;
-      const velocityScale = 0.005;
+  const baseRate = 1.0;
+  const maxRateChange = 3.0;
+  const velocityScale = 0.005;
 
-      let targetRate = baseRate;
-      if (velocity > 0.1) {
-        targetRate = baseRate + (direction * Math.min(velocity * velocityScale, maxRateChange));
-      } else {
-        targetRate = 0.01;
-      }
+  let targetRate = baseRate;
+  if (velocity > 0.1) {
+    targetRate = baseRate + (direction * Math.min(velocity * velocityScale, maxRateChange));
+  } else {
+    targetRate = 0.01;
+  }
 
-      audioSource.playbackRate.setTargetAtTime(
-        targetRate,
-        audioContext.currentTime,
-        0.02
-      );
+  audioSource.playbackRate.setTargetAtTime(
+    targetRate,
+    audioContext.currentTime,
+    0.02
+  );
 
-      filterNode.frequency.setTargetAtTime(
-        1000 + (velocity * 100),
-        audioContext.currentTime,
-        0.02
-      );
+  filterNode.frequency.setTargetAtTime(
+    1000 + (velocity * 100),
+    audioContext.currentTime,
+    0.02
+  );
 
-      currentRotation += velocityX * 0.05; // Reduced rotation sensitivity (changed from 0.2 to 0.05)
-      vinyl.style.transform = `rotate(${currentRotation}deg)`;
+  // Reverse the direction of rotation by negating velocityX
+  currentRotation -= velocityX * 0.05; // Subtract instead of adding
+  vinyl.style.transform = `rotate(${currentRotation}deg)`;
 
-      velocityX *= 0.95;
-      velocityY *= 0.95;
+  velocityX *= 0.95;
+  velocityY *= 0.95;
 
-      animationFrameId = requestAnimationFrame(updatePlayback);
-    }
+  animationFrameId = requestAnimationFrame(updatePlayback);
+}
 
     turntable.addEventListener('mousedown', (e) => {
       if (!audioSource) return;
