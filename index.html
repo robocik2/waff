@@ -134,9 +134,251 @@
   <canvas id="string-canvas"></canvas>
 
   <script>
-    // Previous audio context and control code remains the same...
-    
-    // String Physics Simulation
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    let audioBuffer = null;
+    let audioSource = null;
+    let gainNode = null;
+    let filterNode = null;
+    let isPlaying = false;
+
+    document.addEventListener('dragstart', (e) => {
+      e.preventDefault();
+    });
+
+    function setupAudio() {
+      audioSource = audioContext.createBufferSource();
+      gainNode = audioContext.createGain();
+      filterNode = audioContext.createBiquadFilter();
+
+      audioSource.buffer = audioBuffer;
+      audioSource.loop = true;
+      audioSource.playbackRate.value = 1;
+
+      audioSource.connect(gainNode);
+      gainNode.connect(filterNode);
+      filterNode.connect(audioContext.destination);
+
+      gainNode.gain.value = 0.7;
+      filterNode.type = 'lowpass';
+      filterNode.frequency.value = 20000;
+      filterNode.Q.value = 1;
+
+      audioSource.start(0);
+    }
+
+    async function loadAndPlayTrack(url) {
+      try {
+        if (audioContext.state === 'suspended') {
+          await audioContext.resume();
+        }
+        
+        if (!audioBuffer) {
+          const response = await fetch(url);
+          const arrayBuffer = await response.arrayBuffer();
+          audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+        }
+        
+        if (audioSource) {
+          audioSource.stop();
+        }
+        
+        setupAudio();
+        document.querySelector('.vinyl-img').classList.add('spinning');
+        isPlaying = true;
+        document.querySelector('button').classList.remove('play');
+        document.querySelector('button').classList.add('pause');
+      } catch (error) {
+        console.error('Error loading audio:', error);
+      }
+    }
+
+    async function togglePlay() {
+      if (!audioBuffer) {
+        await loadAndPlayTrack('pykpykpyk.mp3');
+        return;
+      }
+
+      const button = document.querySelector('button');
+      if (isPlaying) {
+        audioSource.stop();
+        document.querySelector('.vinyl-img').classList.remove('spinning');
+        button.classList.remove('pause');
+        button.classList.add('play');
+        isPlaying = false;
+      } else {
+        setupAudio();
+        document.querySelector('.vinyl-img').classList.add('spinning');
+        button.classList.remove('play');
+        button.classList.add('pause');
+        isPlaying = true;
+      }
+    }
+
+    // Turntable interaction variables
+    const vinyl = document.querySelector('.vinyl-img');
+    const turntable = document.querySelector('.turntable');
+    let isDragging = false;
+    let lastX = 0;
+    let lastY = 0;
+    let lastMoveTime = 0;
+    let currentRotation = 0;
+    let velocityX = 0;
+    let velocityY = 0;
+    let animationFrameId = null;
+
+    function updatePlayback() {
+      if (!isDragging || !audioSource) return;
+
+      const velocity = Math.sqrt(velocityX * velocityX + velocityY * velocityY);
+      const direction = velocityX > 0 ? 1 : -1;
+
+      const baseRate = 1.0;
+      const maxRateChange = 3.0;
+      const velocityScale = 0.005;
+
+      let targetRate = baseRate;
+      if (velocity > 0.1) {
+        targetRate = baseRate + (direction * Math.min(velocity * velocityScale, maxRateChange));
+      } else {
+        targetRate = 0.01;
+      }
+
+      audioSource.playbackRate.setTargetAtTime(
+        targetRate,
+        audioContext.currentTime,
+        0.02
+      );
+
+      filterNode.frequency.setTargetAtTime(
+        1000 + (velocity * 100),
+        audioContext.currentTime,
+        0.02
+      );
+
+      currentRotation -= velocityX * 0.05;
+      vinyl.style.transform = `rotate(${currentRotation}deg)`;
+
+      velocityX *= 0.95;
+      velocityY *= 0.95;
+
+      animationFrameId = requestAnimationFrame(updatePlayback);
+    }
+
+    function handleDragStart(e) {
+      if (!audioSource) return;
+      
+      isDragging = true;
+      vinyl.classList.remove('spinning');
+      lastX = e.touches ? e.touches[0].clientX : e.clientX;
+      lastY = e.touches ? e.touches[0].clientY : e.clientY;
+      lastMoveTime = performance.now();
+      velocityX = 0;
+      velocityY = 0;
+
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+      }
+
+      const currentTransform = window.getComputedStyle(vinyl).getPropertyValue('transform');
+      if (currentTransform && currentTransform !== 'none') {
+        const values = currentTransform.split('(')[1].split(')')[0].split(',');
+        const a = values[0];
+        const b = values[1];
+        currentRotation = Math.round(Math.atan2(b, a) * (180 / Math.PI));
+      }
+
+      animationFrameId = requestAnimationFrame(updatePlayback);
+    }
+
+    function handleDragMove(e) {
+      if (isDragging) {
+        const currentTime = performance.now();
+        const deltaTime = (currentTime - lastMoveTime) / 1000;
+
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+        velocityX = (clientX - lastX) / deltaTime;
+        velocityY = (clientY - lastY) / deltaTime;
+
+        const maxVelocity = 1000;
+        velocityX = Math.max(-maxVelocity, Math.min(maxVelocity, velocityX));
+        velocityY = Math.max(-maxVelocity, Math.min(maxVelocity, velocityY));
+
+        lastX = clientX;
+        lastY = clientY;
+        lastMoveTime = currentTime;
+      }
+    }
+
+    function handleDragEnd() {
+      if (isDragging) {
+        isDragging = false;
+        if (audioSource) {
+          vinyl.classList.add('spinning');
+          vinyl.style.transform = '';
+          audioSource.playbackRate.setTargetAtTime(1, audioContext.currentTime, 0.1);
+          filterNode.frequency.setTargetAtTime(20000, audioContext.currentTime, 0.1);
+        }
+
+        if (animationFrameId) {
+          cancelAnimationFrame(animationFrameId);
+        }
+      }
+    }
+
+    // Stretchable image variables and handlers
+    const stretchableContainer = document.querySelector('.stretchable-container');
+    const stretchableImg = document.querySelector('.stretchable-img');
+    let isStretching = false;
+    let startY = 0;
+    let originalHeight = stretchableImg.offsetHeight;
+    let currentScale = 1;
+
+    function handleStretchStart(e) {
+      if (!audioSource) return;
+      
+      isStretching = true;
+      startY = e.touches ? e.touches[0].clientY : e.clientY;
+      originalHeight = stretchableImg.offsetHeight;
+      e.preventDefault();
+    }
+
+    function handleStretchMove(e) {
+      if (!isStretching) return;
+
+      const currentY = e.touches ? e.touches[0].clientY : e.clientY;
+      const deltaY = startY - currentY;
+      
+      const scaleY = Math.max(0.5, Math.min(2, 1 + (deltaY / originalHeight)));
+      const scaleX = 1 / Math.sqrt(scaleY);
+      
+      stretchableImg.style.transform = `scaleY(${scaleY}) scaleX(${scaleX})`;
+      
+      if (audioSource) {
+        const pitchRate = scaleY;
+        audioSource.playbackRate.setTargetAtTime(
+          pitchRate,
+          audioContext.currentTime,
+          0.1
+        );
+      }
+
+      e.preventDefault();
+    }
+
+    function handleStretchEnd() {
+      if (!isStretching) return;
+      
+      isStretching = false;
+      stretchableImg.style.transform = 'scale(1)';
+      
+      if (audioSource) {
+        audioSource.playbackRate.setTargetAtTime(1, audioContext.currentTime, 0.1);
+      }
+    }
+
+    // String Physics Simulation Class
     class StringSimulation {
       constructor(canvas, numPoints = 20) {
         this.canvas = canvas;
@@ -152,11 +394,9 @@
       }
 
       init() {
-        // Resize canvas to match window
         this.resize();
         window.addEventListener('resize', () => this.resize());
 
-        // Initialize points
         for (let i = 0; i < this.numPoints; i++) {
           this.points.push({
             x: 0,
@@ -173,17 +413,14 @@
       }
 
       updatePoints(startX, startY, endX, endY) {
-        // Update end points
         this.points[0].x = startX;
         this.points[0].y = startY;
         this.points[this.numPoints - 1].x = endX;
         this.points[this.numPoints - 1].y = endY;
 
-        // Physics simulation
         for (let i = 1; i < this.numPoints - 1; i++) {
           const point = this.points[i];
           
-          // Verlet integration
           const vx = (point.x - point.oldX) * this.damping;
           const vy = (point.y - point.oldY) * this.damping;
           
@@ -194,7 +431,6 @@
           point.y += vy + this.gravity;
         }
 
-        // Constraint solving
         for (let i = 0; i < 5; i++) {
           this.satisfyConstraints();
         }
@@ -231,7 +467,7 @@
       }
 
       draw() {
-        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         
         // Draw string
         this.ctx.beginPath();
@@ -266,13 +502,33 @@
       }
     }
 
+    // Event Listeners
+    // Turntable event listeners
+    turntable.addEventListener('mousedown', handleDragStart);
+    turntable.addEventListener('touchstart', handleDragStart);
+    document.addEventListener('mousemove', handleDragMove);
+    document.addEventListener('touchmove', handleDragMove);
+    document.addEventListener('mouseup', handleDragEnd);
+    document.addEventListener('touchend', handleDragEnd);
+
+    // Stretchable image event listeners
+    stretchableContainer.addEventListener('mousedown', handleStretchStart);
+    stretchableContainer.addEventListener('touchstart', handleStretchStart);
+    document.addEventListener('mousemove', handleStretchMove);
+    document.addEventListener('touchmove', handleStretchMove, { passive: false });
+    document.addEventListener('mouseup', handleStretchEnd);
+    document.addEventListener('touchend', handleStretchEnd);
+
+    // Prevent default drag behavior
+    stretchableImg.addEventListener('dragstart', (e) => {
+      e.preventDefault();
+    });
+
     // Initialize string simulation after page load
     window.addEventListener('load', () => {
       const canvas = document.getElementById('string-canvas');
       new StringSimulation(canvas);
     });
-
-    // Rest of the previous JavaScript code remains the same...
   </script>
 </body>
 </html>
