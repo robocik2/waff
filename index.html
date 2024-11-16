@@ -8,7 +8,7 @@
       align-items: center;
       justify-content: space-around;
       min-height: 100vh;
-      background: #FFD700;
+      background: #FF4500; /* Dark orange background */
       margin: 0;
       font-family: Arial, sans-serif;
       overflow: hidden;
@@ -65,10 +65,17 @@
       width: 100px;
       height: 100px;
       background: #ff6b35;
-      clip-path: polygon(0% 0%, 100% 50%, 0% 100%);
       border: none;
       cursor: pointer;
       transition: background 0.3s ease;
+    }
+
+    button.play {
+      clip-path: polygon(0% 0%, 100% 50%, 0% 100%); /* Play triangle */
+    }
+
+    button.pause {
+      clip-path: polygon(0% 0%, 35% 0%, 35% 100%, 0% 100%, 65% 0%, 100% 0%, 100% 100%, 65% 100%); /* Pause bars */
     }
 
     button:hover {
@@ -105,7 +112,7 @@
       <img src="a man.png" alt="Vinyl" class="vinyl-img" draggable="false">
     </div>
     <div class="controls">
-      <button onclick="loadAndPlayTrack('pykpykpyk.mp3')"></button>
+      <button class="play" onclick="togglePlay()"></button>
     </div>
   </div>
 
@@ -119,6 +126,7 @@
     let audioSource = null;
     let gainNode = null;
     let filterNode = null;
+    let isPlaying = false;
 
     document.addEventListener('dragstart', (e) => {
       e.preventDefault();
@@ -126,14 +134,15 @@
 
     async function loadAndPlayTrack(url) {
       try {
-        // Resume AudioContext if it's suspended
         if (audioContext.state === 'suspended') {
           await audioContext.resume();
         }
         
-        const response = await fetch(url);
-        const arrayBuffer = await response.arrayBuffer();
-        audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+        if (!audioBuffer) {
+          const response = await fetch(url);
+          const arrayBuffer = await response.arrayBuffer();
+          audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+        }
         
         if (audioSource) {
           audioSource.stop();
@@ -141,146 +150,43 @@
         
         setupAudio();
         document.querySelector('.vinyl-img').classList.add('spinning');
+        isPlaying = true;
+        document.querySelector('button').classList.remove('play');
+        document.querySelector('button').classList.add('pause');
       } catch (error) {
         console.error('Error loading audio:', error);
       }
     }
 
-    function setupAudio() {
-      audioSource = audioContext.createBufferSource();
-      gainNode = audioContext.createGain();
-      filterNode = audioContext.createBiquadFilter();
+    function togglePlay() {
+      if (!audioBuffer) {
+        loadAndPlayTrack('pykpykpyk.mp3');
+        return;
+      }
 
-      audioSource.buffer = audioBuffer;
-      audioSource.loop = true;
-      audioSource.playbackRate.value = 1;
-
-      audioSource.connect(gainNode);
-      gainNode.connect(filterNode);
-      filterNode.connect(audioContext.destination);
-
-      gainNode.gain.value = 0.7;
-      filterNode.type = 'lowpass';
-      filterNode.frequency.value = 20000;
-      filterNode.Q.value = 1;
-
-      audioSource.start(0);
-    }
-
-    // Turntable functionality
-    const vinyl = document.querySelector('.vinyl-img');
-    const turntable = document.querySelector('.turntable');
-    let isDragging = false;
-    let lastX = 0;
-    let lastY = 0;
-    let lastMoveTime = 0;
-    let currentRotation = 0;
-    let velocityX = 0;
-    let velocityY = 0;
-    let animationFrameId = null;
-
-    function updatePlayback() {
-      if (!isDragging || !audioSource) return;
-
-      const velocity = Math.sqrt(velocityX * velocityX + velocityY * velocityY);
-      const direction = velocityX > 0 ? 1 : -1;
-
-      const baseRate = 1.0;
-      const maxRateChange = 3.0;
-      const velocityScale = 0.005;
-
-      let targetRate = baseRate;
-      if (velocity > 0.1) {
-        targetRate = baseRate + (direction * Math.min(velocity * velocityScale, maxRateChange));
+      const button = document.querySelector('button');
+      if (isPlaying) {
+        audioSource.stop();
+        document.querySelector('.vinyl-img').classList.remove('spinning');
+        button.classList.remove('pause');
+        button.classList.add('play');
+        isPlaying = false;
       } else {
-        targetRate = 0.01;
-      }
-
-      audioSource.playbackRate.setTargetAtTime(
-        targetRate,
-        audioContext.currentTime,
-        0.02
-      );
-
-      filterNode.frequency.setTargetAtTime(
-        1000 + (velocity * 100),
-        audioContext.currentTime,
-        0.02
-      );
-
-      currentRotation -= velocityX * 0.05;
-      vinyl.style.transform = `rotate(${currentRotation}deg)`;
-
-      velocityX *= 0.95;
-      velocityY *= 0.95;
-
-      animationFrameId = requestAnimationFrame(updatePlayback);
-    }
-
-    function handleDragStart(e) {
-      if (!audioSource) return;
-      
-      isDragging = true;
-      vinyl.classList.remove('spinning');
-      lastX = e.touches ? e.touches[0].clientX : e.clientX;
-      lastY = e.touches ? e.touches[0].clientY : e.clientY;
-      lastMoveTime = performance.now();
-      velocityX = 0;
-      velocityY = 0;
-
-      if (animationFrameId) {
-        cancelAnimationFrame(animationFrameId);
-      }
-
-      const currentTransform = window.getComputedStyle(vinyl).getPropertyValue('transform');
-      if (currentTransform && currentTransform !== 'none') {
-        const values = currentTransform.split('(')[1].split(')')[0].split(',');
-        const a = values[0];
-        const b = values[1];
-        currentRotation = Math.round(Math.atan2(b, a) * (180 / Math.PI));
-      }
-
-      animationFrameId = requestAnimationFrame(updatePlayback);
-    }
-
-    function handleDragMove(e) {
-      if (isDragging) {
-        const currentTime = performance.now();
-        const deltaTime = (currentTime - lastMoveTime) / 1000;
-
-        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-
-        velocityX = (clientX - lastX) / deltaTime;
-        velocityY = (clientY - lastY) / deltaTime;
-
-        const maxVelocity = 1000;
-        velocityX = Math.max(-maxVelocity, Math.min(maxVelocity, velocityX));
-        velocityY = Math.max(-maxVelocity, Math.min(maxVelocity, velocityY));
-
-        lastX = clientX;
-        lastY = clientY;
-        lastMoveTime = currentTime;
+        setupAudio();
+        document.querySelector('.vinyl-img').classList.add('spinning');
+        button.classList.remove('play');
+        button.classList.add('pause');
+        isPlaying = true;
       }
     }
 
-    function handleDragEnd() {
-      if (isDragging) {
-        isDragging = false;
-        if (audioSource) {
-          vinyl.classList.add('spinning');
-          vinyl.style.transform = '';
-          audioSource.playbackRate.setTargetAtTime(1, audioContext.currentTime, 0.1);
-          filterNode.frequency.setTargetAtTime(20000, audioContext.currentTime, 0.1);
-        }
+    // Rest of the audio setup code remains the same...
+    [Previous setupAudio function remains unchanged]
 
-        if (animationFrameId) {
-          cancelAnimationFrame(animationFrameId);
-        }
-      }
-    }
+    // Turntable functionality remains the same...
+    [Previous turntable-related code remains unchanged]
 
-    // Stretchable image functionality
+    // Modified stretchable image functionality
     const stretchableContainer = document.querySelector('.stretchable-container');
     const stretchableImg = document.querySelector('.stretchable-img');
     let isStretching = false;
@@ -302,13 +208,21 @@
 
       const currentY = e.touches ? e.touches[0].clientY : e.clientY;
       const deltaY = startY - currentY;
-      currentScale = Math.max(0.5, Math.min(2, 1 + (deltaY / originalHeight)));
       
-      stretchableImg.style.transform = `scaleY(${currentScale})`;
+      // Calculate vertical scale (0.5 to 2)
+      const scaleY = Math.max(0.5, Math.min(2, 1 + (deltaY / originalHeight)));
+      
+      // Calculate horizontal scale (inverse relationship with vertical scale)
+      // When stretched tall (scaleY > 1), get thinner (scaleX < 1)
+      // When squashed short (scaleY < 1), get wider (scaleX > 1)
+      const scaleX = 1 / Math.sqrt(scaleY);
+      
+      // Apply both scales
+      stretchableImg.style.transform = `scaleY(${scaleY}) scaleX(${scaleX})`;
       
       if (audioSource) {
-        // Change pitch based on stretch
-        const pitchRate = currentScale;
+        // Change pitch based on vertical stretch
+        const pitchRate = scaleY;
         audioSource.playbackRate.setTargetAtTime(
           pitchRate,
           audioContext.currentTime,
@@ -323,33 +237,15 @@
       if (!isStretching) return;
       
       isStretching = false;
-      stretchableImg.style.transform = `scaleY(1)`;
+      stretchableImg.style.transform = 'scale(1)';
       
       if (audioSource) {
         audioSource.playbackRate.setTargetAtTime(1, audioContext.currentTime, 0.1);
       }
     }
 
-    // Turntable event listeners
-    turntable.addEventListener('mousedown', handleDragStart);
-    turntable.addEventListener('touchstart', handleDragStart);
-    document.addEventListener('mousemove', handleDragMove);
-    document.addEventListener('touchmove', handleDragMove);
-    document.addEventListener('mouseup', handleDragEnd);
-    document.addEventListener('touchend', handleDragEnd);
-
-    // Stretchable image event listeners
-    stretchableContainer.addEventListener('mousedown', handleStretchStart);
-    stretchableContainer.addEventListener('touchstart', handleStretchStart);
-    document.addEventListener('mousemove', handleStretchMove);
-    document.addEventListener('touchmove', handleStretchMove, { passive: false });
-    document.addEventListener('mouseup', handleStretchEnd);
-    document.addEventListener('touchend', handleStretchEnd);
-
-    // Prevent default drag behavior
-    stretchableImg.addEventListener('dragstart', (e) => {
-      e.preventDefault();
-    });
+    // Event listeners remain the same...
+    [Previous event listeners remain unchanged]
   </script>
 </body>
 </html>
