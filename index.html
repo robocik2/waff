@@ -108,7 +108,7 @@
       width: 100%;
       height: 100%;
       pointer-events: none;
-      z-index: 1000;
+      z-index: -1; /* Move canvas behind images */
     }
 
     @keyframes spin {
@@ -467,7 +467,7 @@
       }
 
       draw() {
-         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         
         // Draw string
         this.ctx.beginPath();
@@ -477,7 +477,7 @@
           this.ctx.lineTo(this.points[i].x, this.points[i].y);
         }
         
-        this.ctx.strokeStyle = 'black';
+        this.ctx.strokeStyle = 'gray'; // Change string color to gray
         this.ctx.lineWidth = 2;
         this.ctx.stroke();
       }
