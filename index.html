@@ -4,21 +4,29 @@
   <style>
     body {
       display: flex;
-      flex-direction: column;
+      flex-direction: row;
       align-items: center;
-      justify-content: center;
+      justify-content: space-around;
       min-height: 100vh;
-      background: #FFD700; /* Dark yellow */
+      background: #FFD700;
       margin: 0;
       font-family: Arial, sans-serif;
-      overflow: hidden; /* Prevent scrolling */
+      overflow: hidden;
+      padding: 20px;
+    }
+
+    .turntable-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      flex: 1;
+      max-width: 600px;
     }
 
     .turntable {
       position: relative;
-      width: 120%; /* Doubled size */
-      max-width: 600px; /* Doubled max size */
-      aspect-ratio: 1; /* Maintain square shape */
+      width: 100%;
+      aspect-ratio: 1;
       cursor: grab;
       overflow: visible;
       user-select: none;
@@ -54,17 +62,35 @@
     }
 
     button {
-      width: 100px; /* Triangle button size */
+      width: 100px;
       height: 100px;
-      background: #ff6b35; /* Orange */
-      clip-path: polygon(0% 0%, 100% 50%, 0% 100%); /* Play triangle shape */
+      background: #ff6b35;
+      clip-path: polygon(0% 0%, 100% 50%, 0% 100%);
       border: none;
       cursor: pointer;
       transition: background 0.3s ease;
     }
 
     button:hover {
-      background: #ff824d; /* Lighter orange */
+      background: #ff824d;
+    }
+
+    .stretchable-container {
+      position: relative;
+      width: 300px;
+      height: 400px;
+      cursor: ns-resize;
+      margin-left: 50px;
+    }
+
+    .stretchable-img {
+      position: absolute;
+      bottom: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform-origin: bottom center;
+      transition: transform 0.3s ease-out;
     }
 
     @keyframes spin {
@@ -74,11 +100,17 @@
   </style>
 </head>
 <body>
-  <div class="turntable">
-    <img src="a man.png" alt="Vinyl" class="vinyl-img" draggable="false">
+  <div class="turntable-container">
+    <div class="turntable">
+      <img src="a man.png" alt="Vinyl" class="vinyl-img" draggable="false">
+    </div>
+    <div class="controls">
+      <button onclick="loadAndPlayTrack('pykpykpyk.mp3')"></button>
+    </div>
   </div>
-  <div class="controls">
-    <button onclick="loadAndPlayTrack('pykpykpyk.mp3')"></button>
+
+  <div class="stretchable-container">
+    <img src="a man.png" alt="Stretchable" class="stretchable-img" draggable="false">
   </div>
 
   <script>
@@ -94,6 +126,11 @@
 
     async function loadAndPlayTrack(url) {
       try {
+        // Resume AudioContext if it's suspended
+        if (audioContext.state === 'suspended') {
+          await audioContext.resume();
+        }
+        
         const response = await fetch(url);
         const arrayBuffer = await response.arrayBuffer();
         audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
@@ -103,7 +140,7 @@
         }
         
         setupAudio();
-        document.querySelector('.vinyl-img').classList.add('spinning'); // Start spinning when track loads
+        document.querySelector('.vinyl-img').classList.add('spinning');
       } catch (error) {
         console.error('Error loading audio:', error);
       }
@@ -130,6 +167,7 @@
       audioSource.start(0);
     }
 
+    // Turntable functionality
     const vinyl = document.querySelector('.vinyl-img');
     const turntable = document.querySelector('.turntable');
     let isDragging = false;
@@ -142,7 +180,7 @@
     let animationFrameId = null;
 
     function updatePlayback() {
-      if (!isDragging || !audioSource) return; // Rotate only if track is loaded
+      if (!isDragging || !audioSource) return;
 
       const velocity = Math.sqrt(velocityX * velocityX + velocityY * velocityY);
       const direction = velocityX > 0 ? 1 : -1;
@@ -170,7 +208,7 @@
         0.02
       );
 
-      currentRotation -= velocityX * 0.05; // Reverse rotation direction
+      currentRotation -= velocityX * 0.05;
       vinyl.style.transform = `rotate(${currentRotation}deg)`;
 
       velocityX *= 0.95;
@@ -242,12 +280,76 @@
       }
     }
 
+    // Stretchable image functionality
+    const stretchableContainer = document.querySelector('.stretchable-container');
+    const stretchableImg = document.querySelector('.stretchable-img');
+    let isStretching = false;
+    let startY = 0;
+    let originalHeight = stretchableImg.offsetHeight;
+    let currentScale = 1;
+
+    function handleStretchStart(e) {
+      if (!audioSource) return;
+      
+      isStretching = true;
+      startY = e.touches ? e.touches[0].clientY : e.clientY;
+      originalHeight = stretchableImg.offsetHeight;
+      e.preventDefault();
+    }
+
+    function handleStretchMove(e) {
+      if (!isStretching) return;
+
+      const currentY = e.touches ? e.touches[0].clientY : e.clientY;
+      const deltaY = startY - currentY;
+      currentScale = Math.max(0.5, Math.min(2, 1 + (deltaY / originalHeight)));
+      
+      stretchableImg.style.transform = `scaleY(${currentScale})`;
+      
+      if (audioSource) {
+        // Change pitch based on stretch
+        const pitchRate = currentScale;
+        audioSource.playbackRate.setTargetAtTime(
+          pitchRate,
+          audioContext.currentTime,
+          0.1
+        );
+      }
+
+      e.preventDefault();
+    }
+
+    function handleStretchEnd() {
+      if (!isStretching) return;
+      
+      isStretching = false;
+      stretchableImg.style.transform = `scaleY(1)`;
+      
+      if (audioSource) {
+        audioSource.playbackRate.setTargetAtTime(1, audioContext.currentTime, 0.1);
+      }
+    }
+
+    // Turntable event listeners
     turntable.addEventListener('mousedown', handleDragStart);
     turntable.addEventListener('touchstart', handleDragStart);
     document.addEventListener('mousemove', handleDragMove);
     document.addEventListener('touchmove', handleDragMove);
     document.addEventListener('mouseup', handleDragEnd);
     document.addEventListener('touchend', handleDragEnd);
+
+    // Stretchable image event listeners
+    stretchableContainer.addEventListener('mousedown', handleStretchStart);
+    stretchableContainer.addEventListener('touchstart', handleStretchStart);
+    document.addEventListener('mousemove', handleStretchMove);
+    document.addEventListener('touchmove', handleStretchMove, { passive: false });
+    document.addEventListener('mouseup', handleStretchEnd);
+    document.addEventListener('touchend', handleStretchEnd);
+
+    // Prevent default drag behavior
+    stretchableImg.addEventListener('dragstart', (e) => {
+      e.preventDefault();
+    });
   </script>
 </body>
 </html>
