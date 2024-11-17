@@ -108,17 +108,19 @@
       width: 100%;
       height: 100%;
       pointer-events: none;
-      z-index: -1; /* Move canvas behind images */
+      z-index: -1;
     }
 
     @keyframes spin {
       from { transform: rotate(0deg); }
       to { transform: rotate(360deg); }
     }
-      .orbit-controller {
+
+    /* Update orbit styles to be smaller since it only controls time */
+    .orbit-controller {
       position: relative;
-      width: 300px;
-      height: 300px;
+      width: 200px;
+      height: 200px;
       margin-left: 50px;
       display: flex;
       align-items: center;
@@ -136,8 +138,8 @@
 
     .orbiting-image {
       position: absolute;
-      width: 100px;
-      height: 100px;
+      width: 80px;
+      height: 80px;
       cursor: grab;
       transition: transform 0.1s ease-out;
     }
@@ -153,6 +155,62 @@
       border: 2px dashed rgba(255, 255, 255, 0.3);
       border-radius: 50%;
       pointer-events: none;
+    }
+
+    /* New feedback slider styles */
+    .feedback-container {
+      position: relative;
+      width: 300px;
+      height: 150px;
+      margin-left: 50px;
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .feedback-slider {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      cursor: ew-resize;
+    }
+
+    .feedback-track {
+      position: absolute;
+      top: 50%;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.3);
+      transform: translateY(-50%);
+    }
+
+    .feedback-handle {
+      position: absolute;
+      top: 50%;
+      left: 0;
+      width: 80px;
+      height: 80px;
+      transform: translate(-50%, -50%);
+      cursor: ew-resize;
+    }
+
+    .feedback-echoes {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+
+    .echo-image {
+      position: absolute;
+      width: 80px;
+      height: 80px;
+      opacity: 0;
+      transform-origin: center;
+      transition: opacity 0.3s ease;
     }
   </style>
 </head>
@@ -176,10 +234,20 @@
     <img src="a man.png" alt="Delay Controller" class="orbiting-image" draggable="false">
   </div>
 
+  <div class="feedback-container">
+    <div class="feedback-slider">
+      <div class="feedback-track"></div>
+      <div class="feedback-handle">
+        <img src="a man.png" alt="Feedback Control" draggable="false">
+      </div>
+      <div class="feedback-echoes"></div>
+    </div>
+  </div>
+
   <canvas id="string-canvas"></canvas>
   
-
   <script>
+    // Existing JavaScript with modifications
     const audioContext = new (window.AudioContext || window.webkitAudioContext)();
     let audioBuffer = null;
     let audioSource = null;
@@ -260,169 +328,215 @@
       }
     }
 
-    // Turntable interaction variables
-    const vinyl = document.querySelector('.vinyl-img');
-    const turntable = document.querySelector('.turntable');
-    let isDragging = false;
-    let lastX = 0;
-    let lastY = 0;
-    let lastMoveTime = 0;
-    let currentRotation = 0;
-    let velocityX = 0;
-    let velocityY = 0;
-    let animationFrameId = null;
+    // Feedback control variables
+    const feedbackContainer = document.querySelector('.feedback-container');
+    const feedbackHandle = document.querySelector('.feedback-handle');
+    const feedbackEchoes = document.querySelector('.feedback-echoes');
+    let isDraggingFeedback = false;
+    let feedbackStartX = 0;
+    let currentFeedback = 0;
+    const NUM_ECHOES = 5;
+    const echoElements = [];
 
-    function updatePlayback() {
-      if (!isDragging || !audioSource) return;
-
-      const velocity = Math.sqrt(velocityX * velocityX + velocityY * velocityY);
-      const direction = velocityX > 0 ? 1 : -1;
-
-      const baseRate = 1.0;
-      const maxRateChange = 3.0;
-      const velocityScale = 0.005;
-
-      let targetRate = baseRate;
-      if (velocity > 0.1) {
-        targetRate = baseRate + (direction * Math.min(velocity * velocityScale, maxRateChange));
-      } else {
-        targetRate = 0.01;
-      }
-
-      audioSource.playbackRate.setTargetAtTime(
-        targetRate,
-        audioContext.currentTime,
-        0.02
-      );
-
-      filterNode.frequency.setTargetAtTime(
-        1000 + (velocity * 100),
-        audioContext.currentTime,
-        0.02
-      );
-
-      currentRotation -= velocityX * 0.05;
-      vinyl.style.transform = `rotate(${currentRotation}deg)`;
-
-      velocityX *= 0.95;
-      velocityY *= 0.95;
-
-      animationFrameId = requestAnimationFrame(updatePlayback);
+    // Create echo elements
+    for (let i = 0; i < NUM_ECHOES; i++) {
+      const echo = document.createElement('img');
+      echo.src = 'a man.png';
+      echo.classList.add('echo-image');
+      feedbackEchoes.appendChild(echo);
+      echoElements.push(echo);
     }
 
-    function handleDragStart(e) {
+    function updateEchoVisuals(feedback) {
+      const containerWidth = feedbackContainer.offsetWidth;
+      const handleWidth = feedbackHandle.offsetWidth;
+      
+      echoElements.forEach((echo, index) => {
+        const position = (index + 1) * (feedback * 0.2);
+        const xPos = handleWidth + (containerWidth - handleWidth) * position;
+        
+        // Calculate wave offset
+        const time = Date.now() / 1000;
+        const waveOffset = Math.sin(time * 2 + index) * 10;
+        
+        echo.style.left = `${xPos}px`;
+        echo.style.top = `${50 + waveOffset}%`;
+        echo.style.opacity = feedback * (1 - (index * 0.15));
+        echo.style.transform = `translate(-50%, -50%) scale(${1 - (index * 0.1)})`;
+        
+        // Add subtle rotation based on wave
+        const rotation = Math.sin(time * 3 + index * 2) * 5;
+        echo.style.transform += ` rotate(${rotation}deg)`;
+      });
+    }
+
+    function handleFeedbackStart(e) {
       if (!audioSource) return;
       
-      isDragging = true;
-      vinyl.classList.remove('spinning');
-      lastX = e.touches ? e.touches[0].clientX : e.clientX;
-      lastY = e.touches ? e.touches[0].clientY : e.clientY;
-      lastMoveTime = performance.now();
-      velocityX = 0;
-      velocityY = 0;
-
-      if (animationFrameId) {
-        cancelAnimationFrame(animationFrameId);
-      }
-
-      const currentTransform = window.getComputedStyle(vinyl).getPropertyValue('transform');
-      if (currentTransform && currentTransform !== 'none') {
-        const values = currentTransform.split('(')[1].split(')')[0].split(',');
-        const a = values[0];
-        const b = values[1];
-        currentRotation = Math.round(Math.atan2(b, a) * (180 / Math.PI));
-      }
-
-      animationFrameId = requestAnimationFrame(updatePlayback);
+      isDraggingFeedback = true;
+      feedbackStartX = e.touches ? e.touches[0].clientX : e.clientX;
+      
+      // Ensure delay effect is set up
+      setupDelayEffect();
     }
 
-    function handleDragMove(e) {
-      if (isDragging) {
-        const currentTime = performance.now();
-        const deltaTime = (currentTime - lastMoveTime) / 1000;
+    function handleFeedbackMove(e) {
+      if (!isDraggingFeedback) return;
+      
+      const currentX = e.touches ? e.touches[0].clientX : e.clientX;
+      const containerWidth = feedbackContainer.offsetWidth;
+      const handleWidth = feedbackHandle.offsetWidth;
+      const maxMove = containerWidth - handleWidth;
+      
+      const delta = currentX - feedbackStartX;
+      const newPosition = Math.max(0, Math.min(maxMove, delta));
+      
+      // Calculate feedback value (0-1)
+      currentFeedback = newPosition / maxMove;
+      
+      // Update handle position
+      feedbackHandle.style.left = `${newPosition}px`;
+      
+      // Update feedback node
+      if (feedbackNode) {
+        feedbackNode.gain.setTargetAtTime(currentFeedback * 0.9, audioContext.currentTime, 0.1);
+      }
+      
+      // Update echo visuals
+      updateEchoVisuals(currentFeedback);
+    }
 
-        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    function handleFeedbackEnd() {
+      isDraggingFeedback = false;
+    }
 
-        velocityX = (clientX - lastX) / deltaTime;
-        velocityY = (clientY - lastY) / deltaTime;
+    // Start the echo animation loop
+    function animateEchoes() {
+      if (currentFeedback > 0) {
+        updateEchoVisuals(currentFeedback);
+      }
+      requestAnimationFrame(animateEchoes);
+    }
+    animateEchoes();
 
-        const maxVelocity = 1000;
-        velocityX = Math.max(-maxVelocity, Math.min(maxVelocity, velocityX));
-        velocityY = Math.max(-maxVelocity, Math.min(maxVelocity, velocityY));
+    // Add event listeners for feedback control
+    feedbackHandle.addEventListener('mousedown', handleFeedbackStart);
+    feedbackHandle.addEventListener('touchstart', handleFeedbackStart);
+    document.addEventListener('mousemove', handleFeedbackMove);
+    document.addEventListener('touchmove', handleFeedbackMove, { passive: false });
+    document.addEventListener('mouseup', handleFeedbackEnd);
+    document.addEventListener('touchend', handleFeedbackEnd);
 
-        lastX = clientX;
-        lastY = clientY;
-        lastMoveTime = currentTime;
+    // Prevent default drag behavior
+    feedbackHandle.addEventListener('dragstart', (e) => {
+      e.preventDefault();
+    });
+
+    // Modify existing setupAudio function to disconnect previous delay chain
+    let delayNode = null;
+    let feedbackNode = null;
+    let modulationAngle = 0;
+
+    function setupDelayEffect() {
+      if (!delayNode) {
+        delayNode = audioContext.createDelay(2.0);
+        feedbackNode = audioContext.createGain();
+        
+        // Set up feedback loop
+        delayNode.delayTime.value = 0.5;
+        feedbackNode.gain.value = 0.1; // 80% feedback
+        
+        // Create the feedback loop
+        gainNode.connect(delayNode);
+        delayNode.connect(feedbackNode);
+        feedbackNode.connect(delayNode);
+        delayNode.connect(audioContext.destination);
       }
     }
 
-    function handleDragEnd() {
-      if (isDragging) {
-        isDragging = false;
-        if (audioSource) {
-          vinyl.classList.add('spinning');
-          vinyl.style.transform = '';
-          audioSource.playbackRate.setTargetAtTime(1, audioContext.currentTime, 0.1);
-          filterNode.frequency.setTargetAtTime(20000, audioContext.currentTime, 0.1);
-        }
-
-        if (animationFrameId) {
-          cancelAnimationFrame(animationFrameId);
-        }
+    const originalSetupAudio = setupAudio;
+    setupAudio = function() {
+      // If there's an existing delay chain, disconnect it
+      if (delayNode) {
+        gainNode.disconnect(delayNode);
+        delayNode.disconnect();
+        feedbackNode.disconnect();
       }
-    }
+      
+      originalSetupAudio();
+      
+      // Reconnect delay chain if it exists
+      if (delayNode) {
+        gainNode.connect(delayNode);
+        delayNode.connect(feedbackNode);
+        feedbackNode.connect(delayNode);
+        delayNode.connect(audioContext.destination);
+      }
+    };
 
-    // Stretchable image variables and handlers
-    const stretchableContainer = document.querySelector('.stretchable-container');
-    const stretchableImg = document.querySelector('.stretchable-img');
-    let isStretching = false;
-    let startY = 0;
-    let originalHeight = stretchableImg.offsetHeight;
-    let currentScale = 1;
+    // Orbit controller variables
+    const orbitController = document.querySelector('.orbit-controller');
+    const orbitingImage = document.querySelector('.orbiting-image');
+    let isOrbiting = false;
+    let centerX, centerY;
+    let orbitRadius = 100; // Radius of orbit path
 
-    function handleStretchStart(e) {
+    function handleOrbitStart(e) {
       if (!audioSource) return;
       
-      isStretching = true;
-      startY = e.touches ? e.touches[0].clientY : e.clientY;
-      originalHeight = stretchableImg.offsetHeight;
-      e.preventDefault();
+      isOrbiting = true;
+      setupDelayEffect();
+      
+      const rect = orbitController.getBoundingClientRect();
+      centerX = rect.left + rect.width / 2;
+      centerY = rect.top + rect.height / 2;
+      
+      handleOrbitMove(e);
     }
 
-    function handleStretchMove(e) {
-      if (!isStretching) return;
+    function handleOrbitMove(e) {
+      if (!isOrbiting) return;
 
-      const currentY = e.touches ? e.touches[0].clientY : e.clientY;
-      const deltaY = startY - currentY;
+      const mouseX = e.touches ? e.touches[0].clientX : e.clientX;
+      const mouseY = e.touches ? e.touches[0].clientY : e.clientY;
       
-      const scaleY = Math.max(0.5, Math.min(2, 1 + (deltaY / originalHeight)));
-      const scaleX = 1 / Math.sqrt(scaleY);
+      // Calculate angle from center to mouse
+      const deltaX = mouseX - centerX;
+      const deltaY = mouseY - centerY;
+      const angle = Math.atan2(deltaY, deltaX);
       
-      stretchableImg.style.transform = `scaleY(${scaleY}) scaleX(${scaleX})`;
+      // Update image position
+      const x = Math.cos(angle) * orbitRadius;
+      const y = Math.sin(angle) * orbitRadius;
+      orbitingImage.style.transform = `translate(${x}px, ${y}px)`;
       
-      if (audioSource) {
-        const pitchRate = scaleY;
-        audioSource.playbackRate.setTargetAtTime(
-          pitchRate,
-          audioContext.currentTime,
-          0.1
-        );
-      }
-
-      e.preventDefault();
-    }
-
-    function handleStretchEnd() {
-      if (!isStretching) return;
-      
-      isStretching = false;
-      stretchableImg.style.transform = 'scale(1)';
-      
-      if (audioSource) {
-        audioSource.playbackRate.setTargetAtTime(1, audioContext.currentTime, 0.1);
+      // Use angle for delay time modulation only
+      if (delayNode) {
+        // Map angle to delay time between 0.1 and 0.8 seconds
+        const baseDelay = 0.4;
+        const modulationDepth = 0.3;
+        const delayTime = baseDelay + Math.sin(angle) * modulationDepth;
+        
+        delayNode.delayTime.setTargetAtTime(delayTime, audioContext.currentTime, 0.1);
       }
     }
+
+    function handleOrbitEnd() {
+      isOrbiting = false;
+    }
+
+    // Add orbit controller event listeners
+    orbitingImage.addEventListener('mousedown', handleOrbitStart);
+    orbitingImage.addEventListener('touchstart', handleOrbitStart);
+    document.addEventListener('mousemove', handleOrbitMove);
+    document.addEventListener('touchmove', handleOrbitMove, { passive: false });
+    document.addEventListener('mouseup', handleOrbitEnd);
+    document.addEventListener('touchend', handleOrbitEnd);
+
+    // Prevent default drag behavior
+    orbitingImage.addEventListener('dragstart', (e) => {
+      e.preventDefault();
+    });
 
     // String Physics Simulation Class
     class StringSimulation {
@@ -548,142 +662,11 @@
       }
     }
 
-    // Event Listeners
-    // Turntable event listeners
-    turntable.addEventListener('mousedown', handleDragStart);
-    turntable.addEventListener('touchstart', handleDragStart);
-    document.addEventListener('mousemove', handleDragMove);
-    document.addEventListener('touchmove', handleDragMove);
-    document.addEventListener('mouseup', handleDragEnd);
-    document.addEventListener('touchend', handleDragEnd);
-
-    // Stretchable image event listeners
-    stretchableContainer.addEventListener('mousedown', handleStretchStart);
-    stretchableContainer.addEventListener('touchstart', handleStretchStart);
-    document.addEventListener('mousemove', handleStretchMove);
-    document.addEventListener('touchmove', handleStretchMove, { passive: false });
-    document.addEventListener('mouseup', handleStretchEnd);
-    document.addEventListener('touchend', handleStretchEnd);
-
-    // Prevent default drag behavior
-    stretchableImg.addEventListener('dragstart', (e) => {
-      e.preventDefault();
-    });
-
     // Initialize string simulation after page load
     window.addEventListener('load', () => {
       const canvas = document.getElementById('string-canvas');
       new StringSimulation(canvas);
     });
-     let delayNode = null;
-    let feedbackNode = null;
-    let modulationAngle = 0;
-
-    function setupDelayEffect() {
-      if (!delayNode) {
-        delayNode = audioContext.createDelay(2.0);
-        feedbackNode = audioContext.createGain();
-        
-        // Set up feedback loop
-        delayNode.delayTime.value = 0.5;
-        feedbackNode.gain.value = 0.1; // 80% feedback
-        
-        // Create the feedback loop
-        gainNode.connect(delayNode);
-        delayNode.connect(feedbackNode);
-        feedbackNode.connect(delayNode);
-        delayNode.connect(audioContext.destination);
-      }
-    }
-
-    // Orbit controller variables
-    const orbitController = document.querySelector('.orbit-controller');
-    const orbitingImage = document.querySelector('.orbiting-image');
-    let isOrbiting = false;
-    let centerX, centerY;
-    let orbitRadius = 100; // Radius of orbit path
-
-    function handleOrbitStart(e) {
-      if (!audioSource) return;
-      
-      isOrbiting = true;
-      setupDelayEffect();
-      
-      const rect = orbitController.getBoundingClientRect();
-      centerX = rect.left + rect.width / 2;
-      centerY = rect.top + rect.height / 2;
-      
-      handleOrbitMove(e);
-    }
-
-    function handleOrbitMove(e) {
-      if (!isOrbiting) return;
-
-      const mouseX = e.touches ? e.touches[0].clientX : e.clientX;
-      const mouseY = e.touches ? e.touches[0].clientY : e.clientY;
-      
-      // Calculate angle from center to mouse
-      const deltaX = mouseX - centerX;
-      const deltaY = mouseY - centerY;
-      const angle = Math.atan2(deltaY, deltaX);
-      
-      // Update image position
-      const x = Math.cos(angle) * orbitRadius;
-      const y = Math.sin(angle) * orbitRadius;
-      orbitingImage.style.transform = `translate(${x}px, ${y}px)`;
-      
-      // Use angle for delay modulation
-      modulationAngle = angle;
-      
-      // Modulate delay time with sine wave based on angle
-      if (delayNode) {
-        // Map angle to delay time between 0.1 and 0.8 seconds
-        const baseDelay = 0.4; // Center delay time
-        const modulationDepth = 0.3; // How much the delay time varies
-        const delayTime = baseDelay + Math.sin(modulationAngle) * modulationDepth;
-        
-        // Smooth transition to new delay time
-        delayNode.delayTime.setTargetAtTime(delayTime, audioContext.currentTime, 0.1);
-      }
-    }
-
-    function handleOrbitEnd() {
-      isOrbiting = false;
-    }
-
-    // Add orbit controller event listeners
-    orbitingImage.addEventListener('mousedown', handleOrbitStart);
-    orbitingImage.addEventListener('touchstart', handleOrbitStart);
-    document.addEventListener('mousemove', handleOrbitMove);
-    document.addEventListener('touchmove', handleOrbitMove, { passive: false });
-    document.addEventListener('mouseup', handleOrbitEnd);
-    document.addEventListener('touchend', handleOrbitEnd);
-
-    // Prevent default drag behavior
-    orbitingImage.addEventListener('dragstart', (e) => {
-      e.preventDefault();
-    });
-
-    // Modify existing setupAudio function to disconnect previous delay chain
-    const originalSetupAudio = setupAudio;
-    setupAudio = function() {
-      // If there's an existing delay chain, disconnect it
-      if (delayNode) {
-        gainNode.disconnect(delayNode);
-        delayNode.disconnect();
-        feedbackNode.disconnect();
-      }
-      
-      originalSetupAudio();
-      
-      // Reconnect delay chain if it exists
-      if (delayNode) {
-        gainNode.connect(delayNode);
-        delayNode.connect(feedbackNode);
-        feedbackNode.connect(delayNode);
-        delayNode.connect(audioContext.destination);
-      }
-    };
 
   </script>
 </body>
