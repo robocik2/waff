@@ -115,6 +115,45 @@
       from { transform: rotate(0deg); }
       to { transform: rotate(360deg); }
     }
+      .orbit-controller {
+      position: relative;
+      width: 300px;
+      height: 300px;
+      margin-left: 50px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .orbit-center {
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      background: #ff6b35;
+      border-radius: 50%;
+      pointer-events: none;
+    }
+
+    .orbiting-image {
+      position: absolute;
+      width: 100px;
+      height: 100px;
+      cursor: grab;
+      transition: transform 0.1s ease-out;
+    }
+
+    .orbiting-image:active {
+      cursor: grabbing;
+    }
+
+    .orbit-trail {
+      position: absolute;
+      width: 200px;
+      height: 200px;
+      border: 2px dashed rgba(255, 255, 255, 0.3);
+      border-radius: 50%;
+      pointer-events: none;
+    }
   </style>
 </head>
 <body>
@@ -130,8 +169,15 @@
   <div class="stretchable-container">
     <img src="a man.png" alt="Stretchable" class="stretchable-img" draggable="false">
   </div>
+  
+  <div class="orbit-controller">
+    <div class="orbit-trail"></div>
+    <div class="orbit-center"></div>
+    <img src="a man.png" alt="Delay Controller" class="orbiting-image" draggable="false">
+  </div>
 
   <canvas id="string-canvas"></canvas>
+  
 
   <script>
     const audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -529,6 +575,116 @@
       const canvas = document.getElementById('string-canvas');
       new StringSimulation(canvas);
     });
+     let delayNode = null;
+    let feedbackNode = null;
+    let modulationAngle = 0;
+
+    function setupDelayEffect() {
+      if (!delayNode) {
+        delayNode = audioContext.createDelay(2.0);
+        feedbackNode = audioContext.createGain();
+        
+        // Set up feedback loop
+        delayNode.delayTime.value = 0.5;
+        feedbackNode.gain.value = 0.8; // 80% feedback
+        
+        // Create the feedback loop
+        gainNode.connect(delayNode);
+        delayNode.connect(feedbackNode);
+        feedbackNode.connect(delayNode);
+        delayNode.connect(audioContext.destination);
+      }
+    }
+
+    // Orbit controller variables
+    const orbitController = document.querySelector('.orbit-controller');
+    const orbitingImage = document.querySelector('.orbiting-image');
+    let isOrbiting = false;
+    let centerX, centerY;
+    let orbitRadius = 100; // Radius of orbit path
+
+    function handleOrbitStart(e) {
+      if (!audioSource) return;
+      
+      isOrbiting = true;
+      setupDelayEffect();
+      
+      const rect = orbitController.getBoundingClientRect();
+      centerX = rect.left + rect.width / 2;
+      centerY = rect.top + rect.height / 2;
+      
+      handleOrbitMove(e);
+    }
+
+    function handleOrbitMove(e) {
+      if (!isOrbiting) return;
+
+      const mouseX = e.touches ? e.touches[0].clientX : e.clientX;
+      const mouseY = e.touches ? e.touches[0].clientY : e.clientY;
+      
+      // Calculate angle from center to mouse
+      const deltaX = mouseX - centerX;
+      const deltaY = mouseY - centerY;
+      const angle = Math.atan2(deltaY, deltaX);
+      
+      // Update image position
+      const x = Math.cos(angle) * orbitRadius;
+      const y = Math.sin(angle) * orbitRadius;
+      orbitingImage.style.transform = `translate(${x}px, ${y}px)`;
+      
+      // Use angle for delay modulation
+      modulationAngle = angle;
+      
+      // Modulate delay time with sine wave based on angle
+      if (delayNode) {
+        // Map angle to delay time between 0.1 and 0.8 seconds
+        const baseDelay = 0.4; // Center delay time
+        const modulationDepth = 0.3; // How much the delay time varies
+        const delayTime = baseDelay + Math.sin(modulationAngle) * modulationDepth;
+        
+        // Smooth transition to new delay time
+        delayNode.delayTime.setTargetAtTime(delayTime, audioContext.currentTime, 0.1);
+      }
+    }
+
+    function handleOrbitEnd() {
+      isOrbiting = false;
+    }
+
+    // Add orbit controller event listeners
+    orbitingImage.addEventListener('mousedown', handleOrbitStart);
+    orbitingImage.addEventListener('touchstart', handleOrbitStart);
+    document.addEventListener('mousemove', handleOrbitMove);
+    document.addEventListener('touchmove', handleOrbitMove, { passive: false });
+    document.addEventListener('mouseup', handleOrbitEnd);
+    document.addEventListener('touchend', handleOrbitEnd);
+
+    // Prevent default drag behavior
+    orbitingImage.addEventListener('dragstart', (e) => {
+      e.preventDefault();
+    });
+
+    // Modify existing setupAudio function to disconnect previous delay chain
+    const originalSetupAudio = setupAudio;
+    setupAudio = function() {
+      // If there's an existing delay chain, disconnect it
+      if (delayNode) {
+        gainNode.disconnect(delayNode);
+        delayNode.disconnect();
+        feedbackNode.disconnect();
+      }
+      
+      originalSetupAudio();
+      
+      // Reconnect delay chain if it exists
+      if (delayNode) {
+        gainNode.connect(delayNode);
+        delayNode.connect(feedbackNode);
+        feedbackNode.connect(delayNode);
+        delayNode.connect(audioContext.destination);
+      }
+    };
+
   </script>
 </body>
 </html>
