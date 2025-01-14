@@ -1,3 +1,5 @@
+TurnTable
+
 <!DOCTYPE html>
 <html>
 <head>
@@ -31,6 +33,9 @@
       cursor: grab;
       overflow: visible;
       user-select: none;
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
     }
 
     .turntable:active {
@@ -129,14 +134,6 @@
   </div>
 
   <canvas id="string-canvas"></canvas>
-
-  <div style="display: none;">
-    <iframe id="youtube-audio" 
-            src="https://www.youtube.com/embed/WgC98YcxV60?start=2454&autoplay=0&loop=1&playlist=WgC98YcxV60"
-            allow="autoplay" 
-            frameborder="0">
-    </iframe>
-  </div>
 
   <script>
     const audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -332,6 +329,181 @@
       }
     }
 
+    // Stretchable image variables and handlers
+    const stretchableContainer = document.querySelector('.stretchable-container');
+    const stretchableImg = document.querySelector('.stretchable-img');
+    let isStretching = false;
+    let startY = 0;
+    let originalHeight = stretchableImg.offsetHeight;
+    let currentScale = 1;
+
+    function handleStretchStart(e) {
+      if (!audioSource) return;
+      
+      isStretching = true;
+      startY = e.touches ? e.touches[0].clientY : e.clientY;
+      originalHeight = stretchableImg.offsetHeight;
+      e.preventDefault();
+    }
+
+    function handleStretchMove(e) {
+      if (!isStretching) return;
+
+      const currentY = e.touches ? e.touches[0].clientY : e.clientY;
+      const deltaY = startY - currentY;
+      
+      const scaleY = Math.max(0.5, Math.min(2, 1 + (deltaY / originalHeight)));
+      const scaleX = 1 / Math.sqrt(scaleY);
+      
+      stretchableImg.style.transform = `scaleY(${scaleY}) scaleX(${scaleX})`;
+      
+      if (audioSource) {
+        const pitchRate = scaleY;
+        audioSource.playbackRate.setTargetAtTime(
+          pitchRate,
+          audioContext.currentTime,
+          0.1
+        );
+      }
+
+      e.preventDefault();
+    }
+
+    function handleStretchEnd() {
+      if (!isStretching) return;
+      
+      isStretching = false;
+      stretchableImg.style.transform = 'scale(1)';
+      
+      if (audioSource) {
+        audioSource.playbackRate.setTargetAtTime(1, audioContext.currentTime, 0.1);
+      }
+    }
+
+    // String Physics Simulation Class
+    class StringSimulation {
+      constructor(canvas, numPoints = 20) {
+        this.canvas = canvas;
+        this.ctx = canvas.getContext('2d');
+        this.numPoints = numPoints;
+        this.points = [];
+        this.gravity = 0.5;
+        this.tension = 0.5;
+        this.damping = 0.975;
+        
+        this.init();
+        this.animate();
+      }
+
+      init() {
+        this.resize();
+        window.addEventListener('resize', () => this.resize());
+
+        for (let i = 0; i < this.numPoints; i++) {
+          this.points.push({
+            x: 0,
+            y: 0,
+            oldX: 0,
+            oldY: 0
+          });
+        }
+      }
+
+      resize() {
+        this.canvas.width = window.innerWidth;
+        this.canvas.height = window.innerHeight;
+      }
+
+      updatePoints(startX, startY, endX, endY) {
+        this.points[0].x = startX;
+        this.points[0].y = startY;
+        this.points[this.numPoints - 1].x = endX;
+        this.points[this.numPoints - 1].y = endY;
+
+        for (let i = 1; i < this.numPoints - 1; i++) {
+          const point = this.points[i];
+          
+          const vx = (point.x - point.oldX) * this.damping;
+          const vy = (point.y - point.oldY) * this.damping;
+          
+          point.oldX = point.x;
+          point.oldY = point.y;
+          
+          point.x += vx;
+          point.y += vy + this.gravity;
+        }
+
+        for (let i = 0; i < 5; i++) {
+          this.satisfyConstraints();
+        }
+      }
+
+      satisfyConstraints() {
+        const segmentLength = Math.hypot(
+          this.points[this.numPoints - 1].x - this.points[0].x,
+          this.points[this.numPoints - 1].y - this.points[0].y
+        ) / (this.numPoints - 1);
+
+        for (let i = 0; i < this.numPoints - 1; i++) {
+          const p1 = this.points[i];
+          const p2 = this.points[i + 1];
+          
+          const dx = p2.x - p1.x;
+          const dy = p2.y - p1.y;
+          const distance = Math.hypot(dx, dy);
+          const difference = (distance - segmentLength) / distance;
+          
+          const offsetX = dx * difference * 0.5;
+          const offsetY = dy * difference * 0.5;
+
+          if (i > 0) {
+            p1.x += offsetX;
+            p1.y += offsetY;
+          }
+          
+          if (i < this.numPoints - 2) {
+            p2.x -= offsetX;
+            p2.y -= offsetY;
+          }
+        }
+      }
+
+      draw() {
+         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        
+        // Draw string
+        this.ctx.beginPath();
+        this.ctx.moveTo(this.points[0].x, this.points[0].y);
+        
+        for (let i = 1; i < this.numPoints; i++) {
+          this.ctx.lineTo(this.points[i].x, this.points[i].y);
+        }
+        
+        this.ctx.strokeStyle = 'black';
+        this.ctx.lineWidth = 2;
+        this.ctx.stroke();
+      }
+
+      animate() {
+        // Get positions of images
+        const vinyl = document.querySelector('.vinyl-img');
+        const stretchable = document.querySelector('.stretchable-img');
+        
+        const vinylRect = vinyl.getBoundingClientRect();
+        const stretchableRect = stretchable.getBoundingClientRect();
+
+        const startX = vinylRect.left + vinylRect.width / 2;
+        const startY = vinylRect.top + vinylRect.height / 2;
+        const endX = stretchableRect.left + stretchableRect.width / 2;
+        const endY = stretchableRect.top + stretchableRect.height / 2;
+
+        this.updatePoints(startX, startY, endX, endY);
+        this.draw();
+
+        requestAnimationFrame(() => this.animate());
+      }
+    }
+
     // Event Listeners
     // Turntable event listeners
     turntable.addEventListener('mousedown', handleDragStart);
@@ -341,8 +513,16 @@
     document.addEventListener('mouseup', handleDragEnd);
     document.addEventListener('touchend', handleDragEnd);
 
+    // Stretchable image event listeners
+    stretchableContainer.addEventListener('mousedown', handleStretchStart);
+    stretchableContainer.addEventListener('touchstart', handleStretchStart);
+    document.addEventListener('mousemove', handleStretchMove);
+    document.addEventListener('touchmove', handleStretchMove, { passive: false });
+    document.addEventListener('mouseup', handleStretchEnd);
+    document.addEventListener('touchend', handleStretchEnd);
+
     // Prevent default drag behavior
-    document.querySelector('.stretchable-img').addEventListener('dragstart', (e) => {
+    stretchableImg.addEventListener('dragstart', (e) => {
       e.preventDefault();
     });
 
@@ -351,8 +531,6 @@
       const canvas = document.getElementById('string-canvas');
       new StringSimulation(canvas);
     });
-
-    // String Physics Simulation Class remains unchanged
   </script>
 </body>
 </html>
