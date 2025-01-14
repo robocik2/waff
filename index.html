@@ -1,125 +1,20 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <style>
-    body {
-      display: flex;
-      flex-direction: row;
-      align-items: center;
-      justify-content: space-around;
-      min-height: 100vh;
-      background: #FF4500;
-      margin: 0;
-      font-family: Arial, sans-serif;
-      overflow: hidden;
-      padding: 20px;
-    }
-
-    .turntable-container {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      flex: 1;
-      max-width: 600px;
-      position: relative;
-    }
-
-    .turntable {
-      position: relative;
-      width: 100%;
-      aspect-ratio: 1;
-      cursor: grab;
-      overflow: visible;
-      user-select: none;
-      -webkit-user-select: none;
-      -moz-user-select: none;
-      -ms-user-select: none;
-    }
-
-    .turntable:active {
-      cursor: grabbing;
-    }
-
-    .vinyl-img {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      object-fit: contain;
-      -webkit-user-drag: none;
-      user-drag: none;
-      -webkit-touch-callout: none;
-    }
-
-    .vinyl-img.spinning {
-      animation: spin 8s linear infinite;
-    }
-
-    .controls {
-      margin-top: 20px;
-      display: flex;
-      justify-content: center;
-    }
-
-    button {
-      width: 100px;
-      height: 100px;
-      background: #ff6b35;
-      border: none;
-      cursor: pointer;
-      transition: background 0.3s ease;
-    }
-
-    button.play {
-      clip-path: polygon(0% 0%, 100% 50%, 0% 100%);
-    }
-
-    button.pause {
-      clip-path: polygon(0% 0%, 35% 0%, 35% 100%, 0% 100%, 65% 0%, 100% 0%, 100% 100%, 65% 100%);
-    }
-
-    button:hover {
-      background: #ff824d;
-    }
-
-    @keyframes spin {
-      from { transform: rotate(0deg); }
-      to { transform: rotate(360deg); }
-    }
-  </style>
-  <script src="https://www.youtube.com/iframe_api"></script> <!-- YouTube API -->
+  <script src="https://www.youtube.com/iframe_api"></script>
 </head>
 <body>
-  <div class="turntable-container">
-    <div class="turntable">
-      <img src="a man.png" alt="Vinyl" class="vinyl-img" draggable="false">
-    </div>
-    <div class="controls">
-      <button class="play" onclick="togglePlay()"></button>
-    </div>
-  </div>
-
-  <canvas id="string-canvas"></canvas>
-
+  <div id="player"></div>
   <script>
     let player;
-    let isPlaying = false;
-    let isDragging = false;
-    let lastX = 0;
-    let velocityX = 0;
-    let currentRotation = 0;
-
-    // Inicjalizacja YouTube API
     function onYouTubeIframeAPIReady() {
       player = new YT.Player('player', {
-        height: '0', // Ukryty odtwarzacz
-        width: '0',
-        videoId: 'WgC98YcxV60', // ID filmu
+        height: '390',
+        width: '640',
+        videoId: 'WgC98YcxV60', // ID wideo z YouTube
         playerVars: {
-          start: 2454, // Start od 2454 sekundy
-          autoplay: 0,
-          controls: 0
+          autoplay: 1, // Automatyczne odtwarzanie
+          controls: 1  // Widoczne kontrolki
         },
         events: {
           'onReady': onPlayerReady,
@@ -128,134 +23,15 @@
       });
     }
 
-    function onPlayerReady() {
-      console.log('Odtwarzacz gotowy!');
+    function onPlayerReady(event) {
+      console.log('Player ready!');
     }
 
     function onPlayerStateChange(event) {
       if (event.data === YT.PlayerState.ENDED) {
-        stopSpinning();
+        console.log('Video ended.');
       }
     }
-
-    function togglePlay() {
-      const button = document.querySelector('button');
-      if (isPlaying) {
-        player.pauseVideo();
-        stopSpinning();
-        button.classList.remove('pause');
-        button.classList.add('play');
-        isPlaying = false;
-      } else {
-        player.playVideo();
-        startSpinning();
-        button.classList.remove('play');
-        button.classList.add('pause');
-        isPlaying = true;
-      }
-    }
-
-    function startSpinning() {
-      document.querySelector('.vinyl-img').classList.add('spinning');
-    }
-
-    function stopSpinning() {
-      document.querySelector('.vinyl-img').classList.remove('spinning');
-    }
-
-    // Obsługa przeciągania
-    const turntable = document.querySelector('.turntable');
-    turntable.addEventListener('mousedown', (e) => {
-      isDragging = true;
-      lastX = e.clientX;
-    });
-
-    document.addEventListener('mousemove', (e) => {
-      if (isDragging && isPlaying) {
-        const deltaX = e.clientX - lastX;
-        velocityX = deltaX * 0.1;
-        player.seekTo(player.getCurrentTime() + velocityX / 100, true);
-        lastX = e.clientX;
-
-        // Aktualizacja wizualizacji
-        currentRotation += deltaX * 0.2;
-        document.querySelector('.vinyl-img').style.transform = `rotate(${currentRotation}deg)`;
-      }
-    });
-
-    document.addEventListener('mouseup', () => {
-      isDragging = false;
-    });
-
-    // String Simulation (Twoja funkcjonalność)
-    class StringSimulation {
-      constructor(canvas, numPoints = 20) {
-        this.canvas = canvas;
-        this.ctx = canvas.getContext('2d');
-        this.numPoints = numPoints;
-        this.points = [];
-        this.init();
-        this.animate();
-      }
-
-      init() {
-        this.resize();
-        window.addEventListener('resize', () => this.resize());
-        for (let i = 0; i < this.numPoints; i++) {
-          this.points.push({ x: 0, y: 0 });
-        }
-      }
-
-      resize() {
-        this.canvas.width = window.innerWidth;
-        this.canvas.height = window.innerHeight;
-      }
-
-      updatePoints(startX, startY, endX, endY) {
-        this.points[0].x = startX;
-        this.points[0].y = startY;
-        this.points[this.numPoints - 1].x = endX;
-        this.points[this.numPoints - 1].y = endY;
-
-        for (let i = 1; i < this.numPoints - 1; i++) {
-          this.points[i].x = (this.points[i - 1].x + this.points[i + 1].x) / 2;
-          this.points[i].y = (this.points[i - 1].y + this.points[i + 1].y) / 2;
-        }
-      }
-
-      draw() {
-        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-        this.ctx.beginPath();
-        this.ctx.moveTo(this.points[0].x, this.points[0].y);
-        for (let i = 1; i < this.numPoints; i++) {
-          this.ctx.lineTo(this.points[i].x, this.points[i].y);
-        }
-        this.ctx.strokeStyle = 'black';
-        this.ctx.lineWidth = 2;
-        this.ctx.stroke();
-      }
-
-      animate() {
-        const vinylRect = document.querySelector('.vinyl-img').getBoundingClientRect();
-        const startX = vinylRect.left + vinylRect.width / 2;
-        const startY = vinylRect.top + vinylRect.height / 2;
-
-        const canvas = document.querySelector('.stretchable-container img');
-        const endRect = canvas.getBoundingClientRect();
-        const endX = endRect.left + endRect.width / 2;
-        const endY = endRect.top + endRect.height / 2;
-
-        this.updatePoints(startX, startY, endX, endY);
-        this.draw();
-        requestAnimationFrame(() => this.animate());
-      }
-    }
-
-    // Uruchomienie symulacji struny
-    window.addEventListener('load', () => {
-      const canvas = document.getElementById('string-canvas');
-      new StringSimulation(canvas);
-    });
   </script>
 </body>
 </html>
