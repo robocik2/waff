@@ -1,35 +1,288 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <script src="https://www.youtube.com/iframe_api"></script>
+  <style>
+    body {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      justify-content: space-around;
+      min-height: 100vh;
+      background: #FF4500;
+      margin: 0;
+      font-family: Arial, sans-serif;
+      overflow: hidden;
+      padding: 20px;
+    }
+
+    .turntable-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      flex: 1;
+      max-width: 600px;
+      position: relative;
+    }
+
+    .turntable {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 1;
+      cursor: grab;
+      overflow: visible;
+      user-select: none;
+    }
+
+    .turntable:active {
+      cursor: grabbing;
+    }
+
+    .vinyl-img {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      -webkit-user-drag: none;
+      user-drag: none;
+      -webkit-touch-callout: none;
+    }
+
+    .vinyl-img.spinning {
+      animation: spin 8s linear infinite;
+    }
+
+    .controls {
+      margin-top: 20px;
+      display: flex;
+      justify-content: center;
+    }
+
+    button {
+      width: 100px;
+      height: 100px;
+      background: #ff6b35;
+      border: none;
+      cursor: pointer;
+      transition: background 0.3s ease;
+    }
+
+    button.play {
+      clip-path: polygon(0% 0%, 100% 50%, 0% 100%);
+    }
+
+    button.pause {
+      clip-path: polygon(0% 0%, 35% 0%, 35% 100%, 0% 100%, 65% 0%, 100% 0%, 100% 100%, 65% 100%);
+    }
+
+    button:hover {
+      background: #ff824d;
+    }
+
+    .stretchable-container {
+      position: relative;
+      width: 300px;
+      height: 400px;
+      cursor: ns-resize;
+      margin-left: 50px;
+    }
+
+    .stretchable-img {
+      position: absolute;
+      bottom: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform-origin: bottom center;
+      transition: transform 0.3s ease-out;
+    }
+
+    #string-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 1000;
+    }
+
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+  </style>
 </head>
 <body>
-  <div id="player"></div>
+  <div class="turntable-container">
+    <div class="turntable">
+      <img src="a man.png" alt="Vinyl" class="vinyl-img" draggable="false">
+    </div>
+    <div class="controls">
+      <button class="play" onclick="togglePlay()"></button>
+    </div>
+  </div>
+
+  <div class="stretchable-container">
+    <img src="a man.png" alt="Stretchable" class="stretchable-img" draggable="false">
+  </div>
+
+  <canvas id="string-canvas"></canvas>
+
+  <div style="display: none;">
+    <iframe id="youtube-audio" 
+            src="https://www.youtube.com/embed/WgC98YcxV60?start=2454&autoplay=0&loop=1&playlist=WgC98YcxV60"
+            allow="autoplay" 
+            frameborder="0">
+    </iframe>
+  </div>
+
   <script>
-    let player;
-    function onYouTubeIframeAPIReady() {
-      player = new YT.Player('player', {
-        height: '390',
-        width: '640',
-        videoId: 'WgC98YcxV60', // ID wideo z YouTube
-        playerVars: {
-          autoplay: 1, // Automatyczne odtwarzanie
-          controls: 1  // Widoczne kontrolki
-        },
-        events: {
-          'onReady': onPlayerReady,
-          'onStateChange': onPlayerStateChange
+    let iframe = document.getElementById('youtube-audio');
+    let isPlaying = false;
+
+    function togglePlay() {
+      const src = iframe.src;
+      if (isPlaying) {
+        iframe.src = src.replace('autoplay=1', 'autoplay=0');
+        document.querySelector('.vinyl-img').classList.remove('spinning');
+        document.querySelector('button').classList.add('play');
+        document.querySelector('button').classList.remove('pause');
+      } else {
+        iframe.src = src.replace('autoplay=0', 'autoplay=1');
+        document.querySelector('.vinyl-img').classList.add('spinning');
+        document.querySelector('button').classList.remove('play');
+        document.querySelector('button').classList.add('pause');
+      }
+      isPlaying = !isPlaying;
+    }
+
+    // Initialize string simulation after page load
+    window.addEventListener('load', () => {
+      const canvas = document.getElementById('string-canvas');
+      new StringSimulation(canvas);
+    });
+
+    // String Physics Simulation Class
+    class StringSimulation {
+      constructor(canvas, numPoints = 20) {
+        this.canvas = canvas;
+        this.ctx = canvas.getContext('2d');
+        this.numPoints = numPoints;
+        this.points = [];
+        this.gravity = 0.5;
+        this.tension = 0.5;
+        this.damping = 0.975;
+        
+        this.init();
+        this.animate();
+      }
+
+      init() {
+        this.resize();
+        window.addEventListener('resize', () => this.resize());
+
+        for (let i = 0; i < this.numPoints; i++) {
+          this.points.push({
+            x: 0,
+            y: 0,
+            oldX: 0,
+            oldY: 0
+          });
         }
-      });
-    }
+      }
 
-    function onPlayerReady(event) {
-      console.log('Player ready!');
-    }
+      resize() {
+        this.canvas.width = window.innerWidth;
+        this.canvas.height = window.innerHeight;
+      }
 
-    function onPlayerStateChange(event) {
-      if (event.data === YT.PlayerState.ENDED) {
-        console.log('Video ended.');
+      updatePoints(startX, startY, endX, endY) {
+        this.points[0].x = startX;
+        this.points[0].y = startY;
+        this.points[this.numPoints - 1].x = endX;
+        this.points[this.numPoints - 1].y = endY;
+
+        for (let i = 1; i < this.numPoints - 1; i++) {
+          const point = this.points[i];
+          
+          const vx = (point.x - point.oldX) * this.damping;
+          const vy = (point.y - point.oldY) * this.damping;
+          
+          point.oldX = point.x;
+          point.oldY = point.y;
+          
+          point.x += vx;
+          point.y += vy + this.gravity;
+        }
+
+        for (let i = 0; i < 5; i++) {
+          this.satisfyConstraints();
+        }
+      }
+
+      satisfyConstraints() {
+        const segmentLength = Math.hypot(
+          this.points[this.numPoints - 1].x - this.points[0].x,
+          this.points[this.numPoints - 1].y - this.points[0].y
+        ) / (this.numPoints - 1);
+
+        for (let i = 0; i < this.numPoints - 1; i++) {
+          const p1 = this.points[i];
+          const p2 = this.points[i + 1];
+          
+          const dx = p2.x - p1.x;
+          const dy = p2.y - p1.y;
+          const distance = Math.hypot(dx, dy);
+          const difference = (distance - segmentLength) / distance;
+          
+          const offsetX = dx * difference * 0.5;
+          const offsetY = dy * difference * 0.5;
+
+          if (i > 0) {
+            p1.x += offsetX;
+            p1.y += offsetY;
+          }
+          
+          if (i < this.numPoints - 2) {
+            p2.x -= offsetX;
+            p2.y -= offsetY;
+          }
+        }
+      }
+
+      draw() {
+         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        
+        this.ctx.beginPath();
+        this.ctx.moveTo(this.points[0].x, this.points[0].y);
+        
+        for (let i = 1; i < this.numPoints; i++) {
+          this.ctx.lineTo(this.points[i].x, this.points[i].y);
+        }
+        
+        this.ctx.strokeStyle = 'black';
+        this.ctx.lineWidth = 2;
+        this.ctx.stroke();
+      }
+
+      animate() {
+        const vinyl = document.querySelector('.vinyl-img');
+        const stretchable = document.querySelector('.stretchable-img');
+        
+        const vinylRect = vinyl.getBoundingClientRect();
+        const stretchableRect = stretchable.getBoundingClientRect();
+
+        const startX = vinylRect.left + vinylRect.width / 2;
+        const startY = vinylRect.top + vinylRect.height / 2;
+        const endX = stretchableRect.left + stretchableRect.width / 2;
+        const endY = stretchableRect.top + stretchableRect.height / 2;
+
+        this.updatePoints(startX, startY, endX, endY);
+        this.draw();
+
+        requestAnimationFrame(() => this.animate());
       }
     }
   </script>
