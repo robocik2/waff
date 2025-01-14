@@ -158,6 +158,34 @@
       isPlaying = !isPlaying;
     }
 
+    // Add drag interaction for turntable
+    const turntable = document.querySelector('.turntable');
+    const vinylImg = document.querySelector('.vinyl-img');
+    let isDragging = false;
+    let startX = 0;
+    let rotation = 0;
+
+    turntable.addEventListener('mousedown', (e) => {
+      isDragging = true;
+      startX = e.clientX;
+      document.addEventListener('mousemove', onMouseMove);
+      document.addEventListener('mouseup', onMouseUp);
+    });
+
+    function onMouseMove(e) {
+      if (!isDragging) return;
+      const deltaX = e.clientX - startX;
+      rotation += deltaX * 0.1; // Adjust rotation sensitivity
+      vinylImg.style.transform = `rotate(${rotation}deg)`;
+      startX = e.clientX;
+    }
+
+    function onMouseUp() {
+      isDragging = false;
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+    }
+
     // Initialize string simulation after page load
     window.addEventListener('load', () => {
       const canvas = document.getElementById('string-canvas');
