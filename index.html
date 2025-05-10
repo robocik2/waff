@@ -1,535 +1,186 @@
-TurnTable
-
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="UTF-8">
+  <title>Turntable Player</title>
   <style>
-    body {
-      display: flex;
-      flex-direction: row;
-      align-items: center;
-      justify-content: space-around;
-      min-height: 100vh;
-      background: #FF4500;
-      margin: 0;
-      font-family: Arial, sans-serif;
-      overflow: hidden;
-      padding: 20px;
-    }
+    body { display: flex; justify-content: center; align-items: center; height: 100vh; background: #222; color: white; margin: 0; }
+    #controls { display: flex; gap: 50px; align-items: flex-end; }
 
-    .turntable-container {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      flex: 1;
-      max-width: 600px;
-      position: relative;
-    }
-
-    .turntable {
-      position: relative;
-      width: 100%;
-      aspect-ratio: 1;
-      cursor: grab;
-      overflow: visible;
-      user-select: none;
-      -webkit-user-select: none;
-      -moz-user-select: none;
-      -ms-user-select: none;
-    }
-
-    .turntable:active {
-      cursor: grabbing;
-    }
-
-    .vinyl-img {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      object-fit: contain;
-      -webkit-user-drag: none;
-      user-drag: none;
-      -webkit-touch-callout: none;
-    }
-
-    .vinyl-img.spinning {
-      animation: spin 8s linear infinite;
-    }
-
-    .controls {
-      margin-top: 20px;
-      display: flex;
-      justify-content: center;
-    }
-
-    button {
-      width: 100px;
-      height: 100px;
-      background: #ff6b35;
-      border: none;
+    /* Turntable control */
+    #turntable {
+      width: 200px;
+      height: 200px;
+      border: 4px solid #888;
+      border-radius: 50%;
+      background: #444;
       cursor: pointer;
-      transition: background 0.3s ease;
-    }
-
-    button.play {
-      clip-path: polygon(0% 0%, 100% 50%, 0% 100%);
-    }
-
-    button.pause {
-      clip-path: polygon(0% 0%, 35% 0%, 35% 100%, 0% 100%, 65% 0%, 100% 0%, 100% 100%, 65% 100%);
-    }
-
-    button:hover {
-      background: #ff824d;
-    }
-
-    .stretchable-container {
       position: relative;
-      width: 300px;
-      height: 400px;
-      cursor: ns-resize;
-      margin-left: 50px;
+      transform: rotate(0rad);
+    }
+    #turntable::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 10px;
+      height: 10px;
+      background: #222;
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
     }
 
-    .stretchable-img {
+    /* Pitch/LFO control wrapper */
+    #pitchWrapper { width: 100px; height: 200px; position: relative; }
+    #anchorBottom, #anchorTop {
+      width: 20px;
+      height: 20px;
+      background: #777;
+      border-radius: 50%;
+      position: absolute;
+      left: calc(50% - 10px);
+      cursor: grab;
+    }
+    #anchorBottom { bottom: 0; }
+    #anchorTop { bottom: 50px; /* initial */ }
+
+    /* Trunk as an image; initial height = 50px */
+    #trunk {
       position: absolute;
       bottom: 0;
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
+      left: calc(50% - 2px);
+      width: 4px;
+      height: 50px;
       transform-origin: bottom center;
-      transition: transform 0.3s ease-out;
-    }
-
-    #string-canvas {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
       pointer-events: none;
-      z-index: 1000;
-    }
-
-    @keyframes spin {
-      from { transform: rotate(0deg); }
-      to { transform: rotate(360deg); }
     }
   </style>
 </head>
 <body>
-  <div class="turntable-container">
-    <div class="turntable">
-      <img src="a man.png" alt="Vinyl" class="vinyl-img" draggable="false">
-    </div>
-    <div class="controls">
-      <button class="play" onclick="togglePlay()"></button>
+  <div id="controls">
+    <div id="turntable"></div>
+    <div id="pitchWrapper">
+      <!-- Replace 'trunk.png' with your image path -->
+      <img id="trunk" src="trunk.png" alt="trunk" />
+      <div id="anchorBottom"></div>
+      <div id="anchorTop"></div>
     </div>
   </div>
 
-  <div class="stretchable-container">
-    <img src="a man.png" alt="Stretchable" class="stretchable-img" draggable="false">
-  </div>
-
-  <canvas id="string-canvas"></canvas>
+  <audio id="audio" src="pykpykpyk.mp3" loop></audio>
 
   <script>
-    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    let audioBuffer = null;
-    let audioSource = null;
-    let gainNode = null;
-    let filterNode = null;
-    let isPlaying = false;
-
-    document.addEventListener('dragstart', (e) => {
-      e.preventDefault();
+    // Turntable functionality (unchanged)
+    const turntable = document.getElementById('turntable');
+    const audio = document.getElementById('audio');
+    let angle = 0, vel = 0, dragging = false, lastT = 0;
+    let startAngle = 0, startPtr = 0, anim;
+    function ptrAngle(e) {
+      const r = turntable.getBoundingClientRect();
+      const x = e.clientX - (r.left + r.width / 2);
+      const y = e.clientY - (r.top + r.height / 2);
+      return Math.atan2(y, x);
+    }
+    turntable.addEventListener('mousedown', e => {
+      e.preventDefault(); dragging = true;
+      startPtr = ptrAngle(e); startAngle = angle;
+      lastT = performance.now(); cancelAnimationFrame(anim);
     });
-
-    function setupAudio() {
-      audioSource = audioContext.createBufferSource();
-      gainNode = audioContext.createGain();
-      filterNode = audioContext.createBiquadFilter();
-
-      audioSource.buffer = audioBuffer;
-      audioSource.loop = true;
-      audioSource.playbackRate.value = 1;
-
-      audioSource.connect(gainNode);
-      gainNode.connect(filterNode);
-      filterNode.connect(audioContext.destination);
-
-      gainNode.gain.value = 0.7;
-      filterNode.type = 'lowpass';
-      filterNode.frequency.value = 20000;
-      filterNode.Q.value = 1;
-
-      audioSource.start(0);
-    }
-
-    async function loadAndPlayTrack(url) {
-      try {
-        if (audioContext.state === 'suspended') {
-          await audioContext.resume();
-        }
-        
-        if (!audioBuffer) {
-          const response = await fetch(url);
-          const arrayBuffer = await response.arrayBuffer();
-          audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-        }
-        
-        if (audioSource) {
-          audioSource.stop();
-        }
-        
-        setupAudio();
-        document.querySelector('.vinyl-img').classList.add('spinning');
-        isPlaying = true;
-        document.querySelector('button').classList.remove('play');
-        document.querySelector('button').classList.add('pause');
-      } catch (error) {
-        console.error('Error loading audio:', error);
-      }
-    }
-
-    async function togglePlay() {
-      if (!audioBuffer) {
-        await loadAndPlayTrack('pykpykpyk.mp3');
-        return;
-      }
-
-      const button = document.querySelector('button');
-      if (isPlaying) {
-        audioSource.stop();
-        document.querySelector('.vinyl-img').classList.remove('spinning');
-        button.classList.remove('pause');
-        button.classList.add('play');
-        isPlaying = false;
-      } else {
-        setupAudio();
-        document.querySelector('.vinyl-img').classList.add('spinning');
-        button.classList.remove('play');
-        button.classList.add('pause');
-        isPlaying = true;
-      }
-    }
-
-    // Turntable interaction variables
-    const vinyl = document.querySelector('.vinyl-img');
-    const turntable = document.querySelector('.turntable');
-    let isDragging = false;
-    let lastX = 0;
-    let lastY = 0;
-    let lastMoveTime = 0;
-    let currentRotation = 0;
-    let velocityX = 0;
-    let velocityY = 0;
-    let animationFrameId = null;
-
-    function updatePlayback() {
-      if (!isDragging || !audioSource) return;
-
-      const velocity = Math.sqrt(velocityX * velocityX + velocityY * velocityY);
-      const direction = velocityX > 0 ? 1 : -1;
-
-      const baseRate = 1.0;
-      const maxRateChange = 3.0;
-      const velocityScale = 0.005;
-
-      let targetRate = baseRate;
-      if (velocity > 0.1) {
-        targetRate = baseRate + (direction * Math.min(velocity * velocityScale, maxRateChange));
-      } else {
-        targetRate = 0.01;
-      }
-
-      audioSource.playbackRate.setTargetAtTime(
-        targetRate,
-        audioContext.currentTime,
-        0.02
-      );
-
-      filterNode.frequency.setTargetAtTime(
-        1000 + (velocity * 100),
-        audioContext.currentTime,
-        0.02
-      );
-
-      currentRotation -= velocityX * 0.05;
-      vinyl.style.transform = `rotate(${currentRotation}deg)`;
-
-      velocityX *= 0.95;
-      velocityY *= 0.95;
-
-      animationFrameId = requestAnimationFrame(updatePlayback);
-    }
-
-    function handleDragStart(e) {
-      if (!audioSource) return;
-      
-      isDragging = true;
-      vinyl.classList.remove('spinning');
-      lastX = e.touches ? e.touches[0].clientX : e.clientX;
-      lastY = e.touches ? e.touches[0].clientY : e.clientY;
-      lastMoveTime = performance.now();
-      velocityX = 0;
-      velocityY = 0;
-
-      if (animationFrameId) {
-        cancelAnimationFrame(animationFrameId);
-      }
-
-      const currentTransform = window.getComputedStyle(vinyl).getPropertyValue('transform');
-      if (currentTransform && currentTransform !== 'none') {
-        const values = currentTransform.split('(')[1].split(')')[0].split(',');
-        const a = values[0];
-        const b = values[1];
-        currentRotation = Math.round(Math.atan2(b, a) * (180 / Math.PI));
-      }
-
-      animationFrameId = requestAnimationFrame(updatePlayback);
-    }
-
-    function handleDragMove(e) {
-      if (isDragging) {
-        const currentTime = performance.now();
-        const deltaTime = (currentTime - lastMoveTime) / 1000;
-
-        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-
-        velocityX = (clientX - lastX) / deltaTime;
-        velocityY = (clientY - lastY) / deltaTime;
-
-        const maxVelocity = 1000;
-        velocityX = Math.max(-maxVelocity, Math.min(maxVelocity, velocityX));
-        velocityY = Math.max(-maxVelocity, Math.min(maxVelocity, velocityY));
-
-        lastX = clientX;
-        lastY = clientY;
-        lastMoveTime = currentTime;
-      }
-    }
-
-    function handleDragEnd() {
-      if (isDragging) {
-        isDragging = false;
-        if (audioSource) {
-          vinyl.classList.add('spinning');
-          vinyl.style.transform = '';
-          audioSource.playbackRate.setTargetAtTime(1, audioContext.currentTime, 0.1);
-          filterNode.frequency.setTargetAtTime(20000, audioContext.currentTime, 0.1);
-        }
-
-        if (animationFrameId) {
-          cancelAnimationFrame(animationFrameId);
-        }
-      }
-    }
-
-    // Stretchable image variables and handlers
-    const stretchableContainer = document.querySelector('.stretchable-container');
-    const stretchableImg = document.querySelector('.stretchable-img');
-    let isStretching = false;
-    let startY = 0;
-    let originalHeight = stretchableImg.offsetHeight;
-    let currentScale = 1;
-
-    function handleStretchStart(e) {
-      if (!audioSource) return;
-      
-      isStretching = true;
-      startY = e.touches ? e.touches[0].clientY : e.clientY;
-      originalHeight = stretchableImg.offsetHeight;
-      e.preventDefault();
-    }
-
-    function handleStretchMove(e) {
-      if (!isStretching) return;
-
-      const currentY = e.touches ? e.touches[0].clientY : e.clientY;
-      const deltaY = startY - currentY;
-      
-      const scaleY = Math.max(0.5, Math.min(2, 1 + (deltaY / originalHeight)));
-      const scaleX = 1 / Math.sqrt(scaleY);
-      
-      stretchableImg.style.transform = `scaleY(${scaleY}) scaleX(${scaleX})`;
-      
-      if (audioSource) {
-        const pitchRate = scaleY;
-        audioSource.playbackRate.setTargetAtTime(
-          pitchRate,
-          audioContext.currentTime,
-          0.1
-        );
-      }
-
-      e.preventDefault();
-    }
-
-    function handleStretchEnd() {
-      if (!isStretching) return;
-      
-      isStretching = false;
-      stretchableImg.style.transform = 'scale(1)';
-      
-      if (audioSource) {
-        audioSource.playbackRate.setTargetAtTime(1, audioContext.currentTime, 0.1);
-      }
-    }
-
-    // String Physics Simulation Class
-    class StringSimulation {
-      constructor(canvas, numPoints = 20) {
-        this.canvas = canvas;
-        this.ctx = canvas.getContext('2d');
-        this.numPoints = numPoints;
-        this.points = [];
-        this.gravity = 0.5;
-        this.tension = 0.5;
-        this.damping = 0.975;
-        
-        this.init();
-        this.animate();
-      }
-
-      init() {
-        this.resize();
-        window.addEventListener('resize', () => this.resize());
-
-        for (let i = 0; i < this.numPoints; i++) {
-          this.points.push({
-            x: 0,
-            y: 0,
-            oldX: 0,
-            oldY: 0
-          });
-        }
-      }
-
-      resize() {
-        this.canvas.width = window.innerWidth;
-        this.canvas.height = window.innerHeight;
-      }
-
-      updatePoints(startX, startY, endX, endY) {
-        this.points[0].x = startX;
-        this.points[0].y = startY;
-        this.points[this.numPoints - 1].x = endX;
-        this.points[this.numPoints - 1].y = endY;
-
-        for (let i = 1; i < this.numPoints - 1; i++) {
-          const point = this.points[i];
-          
-          const vx = (point.x - point.oldX) * this.damping;
-          const vy = (point.y - point.oldY) * this.damping;
-          
-          point.oldX = point.x;
-          point.oldY = point.y;
-          
-          point.x += vx;
-          point.y += vy + this.gravity;
-        }
-
-        for (let i = 0; i < 5; i++) {
-          this.satisfyConstraints();
-        }
-      }
-
-      satisfyConstraints() {
-        const segmentLength = Math.hypot(
-          this.points[this.numPoints - 1].x - this.points[0].x,
-          this.points[this.numPoints - 1].y - this.points[0].y
-        ) / (this.numPoints - 1);
-
-        for (let i = 0; i < this.numPoints - 1; i++) {
-          const p1 = this.points[i];
-          const p2 = this.points[i + 1];
-          
-          const dx = p2.x - p1.x;
-          const dy = p2.y - p1.y;
-          const distance = Math.hypot(dx, dy);
-          const difference = (distance - segmentLength) / distance;
-          
-          const offsetX = dx * difference * 0.5;
-          const offsetY = dy * difference * 0.5;
-
-          if (i > 0) {
-            p1.x += offsetX;
-            p1.y += offsetY;
-          }
-          
-          if (i < this.numPoints - 2) {
-            p2.x -= offsetX;
-            p2.y -= offsetY;
-          }
-        }
-      }
-
-      draw() {
-         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-        
-        // Draw string
-        this.ctx.beginPath();
-        this.ctx.moveTo(this.points[0].x, this.points[0].y);
-        
-        for (let i = 1; i < this.numPoints; i++) {
-          this.ctx.lineTo(this.points[i].x, this.points[i].y);
-        }
-        
-        this.ctx.strokeStyle = 'black';
-        this.ctx.lineWidth = 2;
-        this.ctx.stroke();
-      }
-
-      animate() {
-        // Get positions of images
-        const vinyl = document.querySelector('.vinyl-img');
-        const stretchable = document.querySelector('.stretchable-img');
-        
-        const vinylRect = vinyl.getBoundingClientRect();
-        const stretchableRect = stretchable.getBoundingClientRect();
-
-        const startX = vinylRect.left + vinylRect.width / 2;
-        const startY = vinylRect.top + vinylRect.height / 2;
-        const endX = stretchableRect.left + stretchableRect.width / 2;
-        const endY = stretchableRect.top + stretchableRect.height / 2;
-
-        this.updatePoints(startX, startY, endX, endY);
-        this.draw();
-
-        requestAnimationFrame(() => this.animate());
-      }
-    }
-
-    // Event Listeners
-    // Turntable event listeners
-    turntable.addEventListener('mousedown', handleDragStart);
-    turntable.addEventListener('touchstart', handleDragStart);
-    document.addEventListener('mousemove', handleDragMove);
-    document.addEventListener('touchmove', handleDragMove);
-    document.addEventListener('mouseup', handleDragEnd);
-    document.addEventListener('touchend', handleDragEnd);
-
-    // Stretchable image event listeners
-    stretchableContainer.addEventListener('mousedown', handleStretchStart);
-    stretchableContainer.addEventListener('touchstart', handleStretchStart);
-    document.addEventListener('mousemove', handleStretchMove);
-    document.addEventListener('touchmove', handleStretchMove, { passive: false });
-    document.addEventListener('mouseup', handleStretchEnd);
-    document.addEventListener('touchend', handleStretchEnd);
-
-    // Prevent default drag behavior
-    stretchableImg.addEventListener('dragstart', (e) => {
-      e.preventDefault();
+    document.addEventListener('mousemove', e => {
+      if (!dragging) return;
+      const p = ptrAngle(e);
+      const delta = p - startPtr;
+      const now = performance.now();
+      const dt = (now - lastT) / 1000;
+      vel = (startAngle + delta - angle) / dt;
+      angle = startAngle + delta; lastT = now;
+      turntable.style.transform = `rotate(${angle}rad)`;
     });
+    document.addEventListener('mouseup', () => {
+      if (!dragging) return;
+      dragging = false; lastT = performance.now();
+      function inert() {
+        const now = performance.now();
+        const dt = (now - lastT) / 1000;
+        lastT = now;
+        angle += vel * dt;
+        vel *= 0.95;
+        turntable.style.transform = `rotate(${angle}rad)`;
+        if (Math.abs(vel) > 0.0001) anim = requestAnimationFrame(inert);
+      }
+      anim = requestAnimationFrame(inert);
+    });
+    turntable.addEventListener('click', () => {
+      if (audio.paused) { audio.play(); spin(); }
+      else { audio.pause(); cancelAnimationFrame(anim); }
+    });
+    function spin() {
+      vel = 2; lastT = performance.now();
+      (function go() {
+        const now = performance.now();
+        const dt = (now - lastT) / 1000;
+        lastT = now;
+        angle += vel * dt;
+        turntable.style.transform = `rotate(${angle}rad)`;
+        anim = requestAnimationFrame(go);
+      })();
+    }
 
-    // Initialize string simulation after page load
-    window.addEventListener('load', () => {
-      const canvas = document.getElementById('string-canvas');
-      new StringSimulation(canvas);
+    // Image-based trunk control
+    const wrap = document.getElementById('pitchWrapper');
+    const topA = document.getElementById('anchorTop');
+    const bottomA = document.getElementById('anchorBottom');
+    const trunkImg = document.getElementById('trunk');
+
+    let active = false;
+    let startMouseX = 0, startMouseY = 0;
+    let startVX = 0, startVY = 50;
+    let vx = 0, vy = 50;
+
+    // LFO
+    let lfoFreq = 1, lfoDepth = 0.1, lfoPhase = 0, lastLfo = performance.now();
+    function lfoLoop() {
+      const now = performance.now();
+      const dt = (now - lastLfo) / 1000;
+      lastLfo = now;
+      lfoPhase += 2 * Math.PI * lfoFreq * dt;
+      const val = Math.sin(lfoPhase);
+      audio.playbackRate = (vy / 50) + val * lfoDepth;
+      requestAnimationFrame(lfoLoop);
+    }
+    lfoLoop();
+
+    function updateTrunk() {
+      const dx = vx;
+      const dy = vy;
+      const len = Math.hypot(dx, dy);
+      // Rotate so vertical up (0,1) aligns to vector (dx, dy)
+      const ang = Math.atan2(dx, dy);
+      const scale = len / 50;
+      trunkImg.style.transform = `rotate(${ang}rad) scaleY(${scale})`;
+      topA.style.bottom = `${vy}px`;
+      topA.style.left = `calc(50% - 10px + ${dx}px)`;
+    }
+    updateTrunk();
+
+    topA.addEventListener('mousedown', e => {
+      e.preventDefault(); active = true;
+      startMouseX = e.clientX; startMouseY = e.clientY;
+      startVX = vx; startVY = vy;
+      wrap.style.cursor = 'grabbing';
+    });
+    document.addEventListener('mousemove', e => {
+      if (!active) return;
+      vx = startVX + (e.clientX - startMouseX);
+      vy = startVY + (startMouseY - e.clientY);
+      lfoFreq = 1 + vx / 50;
+      updateTrunk();
+    });
+    document.addEventListener('mouseup', () => {
+      if (active) {
+        active = false;
+        wrap.style.cursor = 'default';
+      }
     });
   </script>
 </body>
