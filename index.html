@@ -123,7 +123,7 @@
 <body>
   <div class="turntable-container">
     <div class="turntable">
-      <img src="a_man.png" alt="Vinyl" class="vinyl-img" draggable="false" />
+      <img src="a man.png" alt="Vinyl" class="vinyl-img" draggable="false" />
     </div>
     <div class="controls">
       <button class="play" onclick="togglePlay()"></button>
@@ -131,7 +131,7 @@
   </div>
 
   <div class="stretchable-container">
-    <img src="a_man.png" alt="Stretchable" class="stretchable-img" draggable="false" />
+    <img src="a man.png" alt="Stretchable" class="stretchable-img" draggable="false" />
   </div>
 
   <canvas id="string-canvas"></canvas>
@@ -352,77 +352,4 @@
         this.points[0].y = sy;
         this.points[this.numPoints - 1].x = ex;
         this.points[this.numPoints - 1].y = ey;
-        for (let i = 1; i < this.numPoints - 1; i++) {
-          const p = this.points[i];
-          const vx = (p.x - p.oldX) * this.damping;
-          const vy = (p.y - p.oldY) * this.damping;
-          p.oldX = p.x;
-          p.oldY = p.y;
-          p.x += vx;
-          p.y += vy + this.gravity;
-        }
-        for (let i = 0; i < 5; i++) this.satisfyConstraints();
-      }
-      satisfyConstraints() {
-        const seg = Math.hypot(
-          this.points[this.numPoints - 1].x - this.points[0].x,
-          this.points[this.numPoints - 1].y - this.points[0].y
-        ) / (this.numPoints - 1);
-        for (let i = 0; i < this.numPoints - 1; i++) {
-          const p1 = this.points[i];
-          const p2 = this.points[i + 1];
-          const dx = p2.x - p1.x;
-          const dy = p2.y - p1.y;
-          const dist = Math.hypot(dx, dy);
-          const diff = (dist - seg) / dist;
-          const ox = dx * diff * 0.5;
-          const oy = dy * diff * 0.5;
-          if (i > 0) { p1.x += ox; p1.y += oy; }
-          if (i < this.numPoints - 2) { p2.x -= ox; p2.y -= oy; }
-        }
-      }
-      draw() {
-        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-        this.ctx.beginPath();
-        this.ctx.moveTo(this.points[0].x, this.points[0].y);
-        for (let i = 1; i < this.numPoints; i++) {
-          this.ctx.lineTo(this.points[i].x, this.points[i].y);
-        }
-        this.ctx.strokeStyle = 'black';
-        this.ctx.lineWidth = 2;
-        this.ctx.stroke();
-      }
-      animate() {
-        const vinylRect = document.querySelector('.vinyl-img').getBoundingClientRect();
-        const stretchableRect = document.querySelector('.stretchable-img').getBoundingClientRect();
-        const sx = vinylRect.left + vinylRect.width / 2;
-        const sy = vinylRect.top + vinylRect.height / 2;
-        const ex = stretchableRect.left + stretchableRect.width / 2;
-        const ey = stretchableRect.top + stretchableRect.height / 2;
-        this.updatePoints(sx, sy, ex, ey);
-        this.draw();
-        requestAnimationFrame(() => this.animate());
-      }
-    }
-
-    // Event listeners
-    turntable.addEventListener('mousedown', handleDragStart);
-    turntable.addEventListener('touchstart', handleDragStart);
-    document.addEventListener('mousemove', handleDragMove);
-    document.addEventListener('touchmove', handleDragMove);
-    document.addEventListener('mouseup', handleDragEnd);
-    document.addEventListener('touchend', handleDragEnd);
-    stretchableContainer.addEventListener('mousedown', handleStretchStart);
-    stretchableContainer.addEventListener('touchstart', handleStretchStart);
-    document.addEventListener('mousemove', handleStretchMove);
-    document.addEventListener('touchmove', handleStretchMove, { passive: false });
-    document.addEventListener('mouseup', handleStretchEnd);
-    document.addEventListener('touchend', handleStretchEnd);
-    stretchableImg.addEventListener('dragstart', e => e.preventDefault());
-
-    window.addEventListener('load', () => {
-      new StringSimulation(document.getElementById('string-canvas'));
-    });
-  </script>
-</body>
-</html>
+        for (let i = 1; i < this
