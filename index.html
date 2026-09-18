@@ -1,355 +1,168 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Turntable Player</title>
-  <style>
-    body {
-      display: flex;
-      flex-direction: row;
-      align-items: center;
-      justify-content: space-around;
-      min-height: 100vh;
-      background: #FF4500;
-      margin: 0;
-      font-family: Arial, sans-serif;
-      overflow: hidden;
-      padding: 20px;
-    }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Eye</title>
+<style>
+  :root {
+    --page-bg: #000;            /* page background – change to match your overlay */
+    --eye-max-width: 900px;     /* max width of the eye on large screens */
+    --inside-size: 55%;         /* width of eyeinside.png relative to the eye */
+  }
 
-    .turntable-container {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      flex: 1;
-      max-width: 600px;
-      position: relative;
-    }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
 
-    .turntable {
-      position: relative;
-      width: 100%;
-      aspect-ratio: 1;
-      cursor: grab;
-      overflow: visible;
-      user-select: none;
-      -webkit-user-select: none;
-      -moz-user-select: none;
-      -ms-user-select: none;
-    }
+  html, body {
+    height: 100%;
+    background: var(--page-bg);
+    overflow: hidden;
+  }
 
-    .turntable:active {
-      cursor: grabbing;
-    }
+  body {
+    display: grid;
+    place-items: center;
+  }
 
-    .vinyl-img {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      object-fit: contain;
-      -webkit-user-drag: none;
-      user-drag: none;
-      -webkit-touch-callout: none;
-    }
+  .eye {
+    position: relative;
+    width: min(92vw, var(--eye-max-width));
+    overflow: hidden;           /* inside layer never spills outside the eye box */
+    user-select: none;
+    -webkit-user-select: none;
+  }
 
-    .vinyl-img.spinning {
-      animation: spin 8s linear infinite;
-    }
+  /* Top layer: defines the eye shape (should be PNG with transparent eye opening).
+     It sets the height of the container. */
+  .overlay {
+    position: relative;
+    z-index: 2;
+    display: block;
+    width: 100%;
+    height: auto;
+    pointer-events: none;
+  }
 
-    .controls {
-      margin-top: 20px;
-      display: flex;
-      justify-content: center;
-    }
-
-    button {
-      width: 100px;
-      height: 100px;
-      background: #ff6b35;
-      border: none;
-      cursor: pointer;
-      transition: background 0.3s ease;
-    }
-
-    button.play {
-      clip-path: polygon(0% 0%, 100% 50%, 0% 100%);
-    }
-
-    button.pause {
-      clip-path: polygon(0% 0%, 35% 0%, 35% 100%, 0% 100%, 65% 0%, 100% 0%, 100% 100%, 65% 100%);
-    }
-
-    button:hover {
-      background: #ff824d;
-    }
-
-    .stretchable-container {
-      position: relative;
-      width: 300px;
-      height: 400px;
-      cursor: ns-resize;
-      margin-left: 50px;
-    }
-
-    .stretchable-img {
-      position: absolute;
-      bottom: 0;
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      transform-origin: bottom center;
-      transition: transform 0.3s ease-out;
-    }
-
-    #string-canvas {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      pointer-events: none;
-      z-index: 1000;
-    }
-
-    @keyframes spin {
-      from { transform: rotate(0deg); }
-      to { transform: rotate(360deg); }
-    }
-  </style>
+  /* Bottom layer: eye insides, moved with JS */
+  .inside {
+    position: absolute;
+    z-index: 1;
+    top: 50%;
+    left: 50%;
+    width: var(--inside-size);
+    height: auto;
+    transform: translate(-50%, -50%);
+    will-change: transform;
+    pointer-events: none;
+  }
+</style>
 </head>
 <body>
-  <div class="turntable-container">
-    <div class="turntable">
-      <img src="a man.png" alt="Vinyl" class="vinyl-img" draggable="false" />
-    </div>
-    <div class="controls">
-      <button class="play" onclick="togglePlay()"></button>
-    </div>
+
+  <div class="eye" id="eye">
+    <img class="inside"  id="inside"  src="eyeinside.png" alt="">
+    <img class="overlay" src="overlay.png" alt="Eye">
   </div>
 
-  <div class="stretchable-container">
-    <img src="a man.png" alt="Stretchable" class="stretchable-img" draggable="false" />
-  </div>
+<script>
+(() => {
+  /* ---------- Settings ---------- */
+  const MAX_X = 0.20;        // max horizontal travel, as fraction of eye width
+  const MAX_Y = 0.10;        // max vertical travel, as fraction of eye height
+  const FOLLOW_SMOOTHING = 0.12; // 0–1, lower = softer/slower follow
 
-  <canvas id="string-canvas"></canvas>
+  // Intro: ease-in-out sweep. Values are -1 (full left) … 1 (full right)
+  const INTRO_SWEEP = [
+    { to:  1, duration: 800 },   // centre → right
+    { to: -1, duration: 1100 },  // right → left
+    { to:  0, duration: 800 }    // left → centre
+  ];
+  const INTRO_AMPLITUDE = 0.75;  // fraction of max horizontal travel used in the intro
 
-  <script>
-    // Audio setup using Web Audio API
-    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    let audioBuffer = null;
-    let audioSource = null;
-    let gainNode = null;
-    let filterNode = null;
-    let isPlaying = false;
+  /* ---------- Setup ---------- */
+  const eye = document.getElementById('eye');
+  const inside = document.getElementById('inside');
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-    document.addEventListener('dragstart', e => e.preventDefault());
+  let x = 0, y = 0;            // current offset (px)
+  let targetX = 0, targetY = 0;
+  let introDone = reduceMotion;
 
-    function setupAudio(playbackRate = 1) {
-      if (audioSource) {
-        audioSource.disconnect();
-        audioSource.stop();
-      }
-      audioSource = audioContext.createBufferSource();
-      gainNode = audioContext.createGain();
-      filterNode = audioContext.createBiquadFilter();
+  const easeInOut = t => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 
-      audioSource.buffer = audioBuffer;
-      audioSource.loop = true;
-      audioSource.playbackRate.value = playbackRate;
+  function render() {
+    inside.style.transform = `translate(calc(-50% + ${x}px), calc(-50% + ${y}px))`;
+  }
 
-      audioSource.connect(gainNode);
-      gainNode.connect(filterNode);
-      filterNode.connect(audioContext.destination);
+  /* ---------- Intro (left–right easing) ---------- */
+  function runIntro(done) {
+    let step = 0;
+    let from = 0;
+    let start = null;
 
-      gainNode.gain.value = 0.7;
-      filterNode.type = 'lowpass';
-      filterNode.frequency.value = 20000;
-      filterNode.Q.value = 1;
+    function frame(now) {
+      if (start === null) start = now;
+      const { to, duration } = INTRO_SWEEP[step];
+      const t = Math.min((now - start) / duration, 1);
+      const value = from + (to - from) * easeInOut(t);
 
-      audioSource.start(0);
-    }
+      const rect = eye.getBoundingClientRect();
+      x = value * INTRO_AMPLITUDE * MAX_X * rect.width;
+      render();
 
-    async function loadAndPlayTrack(url) {
-      if (audioContext.state === 'suspended') {
-        await audioContext.resume();
-      }
-      if (!audioBuffer) {
-        const response = await fetch(url);
-        const arrayBuffer = await response.arrayBuffer();
-        audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-      }
-      setupAudio();
-      document.querySelector('.vinyl-img').classList.add('spinning');
-      isPlaying = true;
-      const btn = document.querySelector('button');
-      btn.classList.remove('play');
-      btn.classList.add('pause');
-    }
-
-    async function togglePlay() {
-      if (!audioBuffer) {
-        await loadAndPlayTrack('pykpykpyk.mp3');
-        return;
-      }
-      const btn = document.querySelector('button');
-      if (isPlaying) {
-        audioSource.stop();
-        document.querySelector('.vinyl-img').classList.remove('spinning');
-        btn.classList.remove('pause');
-        btn.classList.add('play');
-        isPlaying = false;
+      if (t < 1) {
+        requestAnimationFrame(frame);
+      } else if (++step < INTRO_SWEEP.length) {
+        from = to;
+        start = null;
+        requestAnimationFrame(frame);
       } else {
-        setupAudio();
-        document.querySelector('.vinyl-img').classList.add('spinning');
-        btn.classList.remove('play');
-        btn.classList.add('pause');
-        isPlaying = true;
+        done();
       }
     }
+    requestAnimationFrame(frame);
+  }
 
-    // Turntable drag interaction
-    const vinyl = document.querySelector('.vinyl-img');
-    const turntable = document.querySelector('.turntable');
-    let isDraggingTT = false;
-    let lastX = 0, lastY = 0;
-    let lastTime = 0;
-    let velocityX = 0, velocityY = 0;
-    let currentRotation = 0;
-    let rafId = null;
+  /* ---------- Cursor following ---------- */
+  function setTargetFromPoint(clientX, clientY) {
+    const rect = eye.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
 
-    function updatePlayback() {
-      if (!isDraggingTT || !audioSource) return;
-      const vel = Math.hypot(velocityX, velocityY);
-      const dir = velocityX > 0 ? 1 : -1;
-      const baseRate = 1;
-      const maxChange = 3;
-      const scale = 0.005;
-      let targetRate = baseRate;
-      if (vel > 0.1) {
-        targetRate = baseRate + dir * Math.min(vel * scale, maxChange);
-      } else {
-        targetRate = 0.01;
-      }
-      audioSource.playbackRate.setTargetAtTime(targetRate, audioContext.currentTime, 0.02);
-      filterNode.frequency.setTargetAtTime(1000 + vel * 100, audioContext.currentTime, 0.02);
-      currentRotation -= velocityX * 0.05;
-      vinyl.style.transform = `rotate(${currentRotation}deg)`;
-      velocityX *= 0.95;
-      velocityY *= 0.95;
-      rafId = requestAnimationFrame(updatePlayback);
+    // Normalised -1…1 relative to the viewport, measured from the eye's centre
+    const nx = Math.max(-1, Math.min(1, (clientX - cx) / (window.innerWidth / 2)));
+    const ny = Math.max(-1, Math.min(1, (clientY - cy) / (window.innerHeight / 2)));
+
+    targetX = nx * MAX_X * rect.width;
+    targetY = ny * MAX_Y * rect.height;
+  }
+
+  window.addEventListener('pointermove', e => setTargetFromPoint(e.clientX, e.clientY));
+  window.addEventListener('pointerdown', e => setTargetFromPoint(e.clientX, e.clientY));
+  window.addEventListener('pointerleave', () => { targetX = 0; targetY = 0; });
+
+  function follow() {
+    if (introDone) {
+      x += (targetX - x) * FOLLOW_SMOOTHING;
+      y += (targetY - y) * FOLLOW_SMOOTHING;
+      render();
     }
+    requestAnimationFrame(follow);
+  }
 
-    function handleDragStart(e) {
-      if (!audioSource) return;
-      isDraggingTT = true;
-      vinyl.classList.remove('spinning');
-      lastX = e.touches ? e.touches[0].clientX : e.clientX;
-      lastY = e.touches ? e.touches[0].clientY : e.clientY;
-      lastTime = performance.now();
-      velocityX = velocityY = 0;
-      if (rafId) cancelAnimationFrame(rafId);
-      const style = window.getComputedStyle(vinyl).transform;
-      if (style && style !== 'none') {
-        const vals = style.split('(')[1].split(')')[0].split(',');
-        const a = +vals[0], b = +vals[1];
-        currentRotation = Math.round(Math.atan2(b, a) * (180 / Math.PI));
-      }
-      rafId = requestAnimationFrame(updatePlayback);
-    }
+  /* ---------- Start ---------- */
+  function start() {
+    render();
+    requestAnimationFrame(follow);
+    if (introDone) return;
+    runIntro(() => { introDone = true; });
+  }
 
-    function handleDragMove(e) {
-      if (!isDraggingTT) return;
-      const now = performance.now();
-      const dt = (now - lastTime) / 1000;
-      const x = e.touches ? e.touches[0].clientX : e.clientX;
-      const y = e.touches ? e.touches[0].clientY : e.clientY;
-      velocityX = (x - lastX) / dt;
-      velocityY = (y - lastY) / dt;
-      const maxV = 1000;
-      velocityX = Math.max(-maxV, Math.min(maxV, velocityX));
-      velocityY = Math.max(-maxV, Math.min(maxV, velocityY));
-      lastX = x; lastY = y; lastTime = now;
-    }
-
-    function handleDragEnd() {
-      if (!isDraggingTT) return;
-      isDraggingTT = false;
-      if (audioSource) {
-        vinyl.classList.add('spinning');
-        vinyl.style.transform = '';
-        audioSource.playbackRate.setTargetAtTime(1, audioContext.currentTime, 0.1);
-        filterNode.frequency.setTargetAtTime(20000, audioContext.currentTime, 0.1);
-      }
-      if (rafId) cancelAnimationFrame(rafId);
-    }
-
-    // Stretchable image handlers
-    const stretchableContainer = document.querySelector('.stretchable-container');
-    const stretchableImg = document.querySelector('.stretchable-img');
-    let isStretching = false;
-    let startSY = 0;
-    let origHeight = 0;
-
-    function handleStretchStart(e) {
-      if (!audioSource) return;
-      isStretching = true;
-      startSY = e.touches ? e.touches[0].clientY : e.clientY;
-      origHeight = stretchableImg.offsetHeight;
-      e.preventDefault();
-    }
-
-    function handleStretchMove(e) {
-      if (!isStretching) return;
-      const y = e.touches ? e.touches[0].clientY : e.clientY;
-      const dy = startSY - y;
-      const scaleY = Math.max(0.5, Math.min(2, 1 + dy / origHeight));
-      const scaleX = 1 / Math.sqrt(scaleY);
-      stretchableImg.style.transform = `scaleY(${scaleY}) scaleX(${scaleX})`;
-      if (audioSource) {
-        audioSource.playbackRate.setTargetAtTime(scaleY, audioContext.currentTime, 0.1);
-      }
-      e.preventDefault();
-    }
-
-    function handleStretchEnd() {
-      if (!isStretching) return;
-      isStretching = false;
-      stretchableImg.style.transform = 'scale(1)';
-      if (audioSource) {
-        audioSource.playbackRate.setTargetAtTime(1, audioContext.currentTime, 0.1);
-      }
-    }
-
-    // String simulation
-    class StringSimulation {
-      constructor(canvas, numPoints = 20) {
-        this.canvas = canvas;
-        this.ctx = canvas.getContext('2d');
-        this.numPoints = numPoints;
-        this.points = [];
-        this.gravity = 0.5;
-        this.tension = 0.5;
-        this.damping = 0.975;
-        this.init();
-        this.animate();
-      }
-      init() {
-        this.resize();
-        window.addEventListener('resize', () => this.resize());
-        for (let i = 0; i < this.numPoints; i++) {
-          this.points.push({ x: 0, y: 0, oldX: 0, oldY: 0 });
-        }
-      }
-      resize() {
-        this.canvas.width = window.innerWidth;
-        this.canvas.height = window.innerHeight;
-      }
-      updatePoints(sx, sy, ex, ey) {
-        this.points[0].x = sx;
-        this.points[0].y = sy;
-        this.points[this.numPoints - 1].x = ex;
-        this.points[this.numPoints - 1].y = ey;
-        for (let i = 1; i < this
+  // Wait for the images so the eye is measured correctly
+  const imgs = [...document.images];
+  Promise.all(imgs.map(img => img.decode ? img.decode().catch(() => {}) : Promise.resolve()))
+    .then(start);
+})();
+</script>
+</body>
+</html>
